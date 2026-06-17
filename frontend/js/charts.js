@@ -23,7 +23,8 @@ function makeChart(chartDiv, n, spIdx = [], fmtY = (v) => v) {
     cursor: { show: true, points: { show: false }, drag: { x: false, y: false } },
     scales: { x: { time: false }, y: {} },
     axes: [
-      { stroke: '#585C62', grid: { stroke: '#ECECEC', width: 1 }, ticks: { stroke: '#ECECEC' }, font: `10px ${MONO}`, values: (u, v) => v.map((x) => `${x | 0}s`) },
+      { stroke: '#585C62', grid: { stroke: '#ECECEC', width: 1 }, ticks: { stroke: '#ECECEC' }, font: `10px ${MONO}`,
+        values: (u, v) => { const dec = v.length > 1 && Math.abs(v[1] - v[0]) < 1 ? 1 : 0; return v.map((x) => `${(+x).toFixed(dec)}s`); } },
       { stroke: '#585C62', grid: { stroke: '#ECECEC', width: 1 }, ticks: { stroke: '#ECECEC' }, font: `10px ${MONO}`, size: 42, values: (u, v) => v.map(fmtY) },
     ],
     series,
@@ -59,7 +60,9 @@ export function buildCharts(host, trends, n) {
   return {
     push(frame) {
       charts.forEach((c) => pushOne(c, frame.t, frame));
-      const now = performance.now(); if (now - last > 90) { redraw(false); last = now; }
+      // resetScales:true so x (and y) track the sliding data window — without it
+      // uPlot freezes the axes after the first frame and new points fall off-canvas.
+      const now = performance.now(); if (now - last > 90) { redraw(true); last = now; }
     },
     fromHistory() {},
     resize() { charts.forEach((c) => c.u.setSize({ width: c.chartDiv.clientWidth, height: 132 })); },

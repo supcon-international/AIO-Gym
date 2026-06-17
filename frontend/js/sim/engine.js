@@ -2,12 +2,12 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=1';
-import { Integrator } from './kernel.js?v=1';
-import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=1';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=1';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=1';
-import { ScoreKeeper } from './scoring.js?v=1';
+import { makeModel } from './models.js?v=2';
+import { Integrator } from './kernel.js?v=2';
+import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=2';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=2';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=2';
+import { ScoreKeeper } from './scoring.js?v=2';
 
 const TICK = 0.05;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -113,16 +113,20 @@ export class Engine {
 
   telemetry() {
     const s = this.state;
+    const state = {
+      levels: s.levels.map((x) => r(x, 4)), temps: s.temps.map((x) => r(x, 3)), volumes: s.volumes.map((x) => r(x, 4)),
+      pump_flow: s.pump_flow.map((x) => r(x, 6)), pump_power: s.pump_power.map((x) => r(x, 1)),
+      tank_outflow: s.tank_outflow.map((x) => r(x, 6)), heater_power: s.heater_power.map((x) => r(x, 1)),
+      t_cold: r(s.t_cold, 2), t_amb: r(s.t_amb, 2),
+    };
+    // Pass through any extra model-specific array fields (e.g. CSTR `conc`) so a
+    // scenario's custom trend charts get their data without touching this list.
+    for (const k in s) { if (!(k in state) && k !== 't' && Array.isArray(s[k])) state[k] = s[k].map((x) => r(x, 4)); }
     return {
       type: 'telemetry', t: r(s.t, 2), running: this.running, speed: this.speed,
       scenario: this.scenario, mode: this.mode, n_tanks: this.n, meta: this.model.metadata(),
       setpoints: { h_sp: this.setpoints.h_sp.map((x) => r(x, 4)), t_sp: this.setpoints.t_sp.map((x) => r(x, 2)) },
-      state: {
-        levels: s.levels.map((x) => r(x, 4)), temps: s.temps.map((x) => r(x, 3)), volumes: s.volumes.map((x) => r(x, 4)),
-        pump_flow: s.pump_flow.map((x) => r(x, 6)), pump_power: s.pump_power.map((x) => r(x, 1)),
-        tank_outflow: s.tank_outflow.map((x) => r(x, 6)), heater_power: s.heater_power.map((x) => r(x, 1)),
-        t_cold: r(s.t_cold, 2), t_amb: r(s.t_amb, 2),
-      },
+      state,
       actuators: { pumps: this.lastAct.pumps.map((x) => r(x, 4)), valves: this.lastAct.valves.map((x) => r(x, 4)), heaters: this.lastAct.heaters.map((x) => r(x, 4)) },
       command: this.manual.snapshot(),
       alarms: this.alarms, interlocks: { heater_trip: this.mask.heater_trip.slice(), pump_trip: this.mask.pump_trip },

@@ -102,6 +102,10 @@ button{font-family:inherit}
 }
 .col{display:flex; flex-direction:column; gap:14px; min-height:0; overflow-y:auto; padding-right:2px}
 .col-center{overflow-y:auto; overflow-x:hidden}
+/* Panels must keep their natural height: if a column runs short, it scrolls
+   (overflow-y:auto above) instead of shrinking panels — which, with .panel
+   overflow:hidden, would clip bottom controls and make them unreachable. */
+.col>.panel{flex-shrink:0}
 
 /* ---------------- Panels ---------------- */
 .panel{
