@@ -87,6 +87,12 @@ button{font-family:inherit}
   height:33px; padding:0 13px; border-radius:var(--radius); font-size:12.5px; font-weight:500; cursor:pointer; transition:.13s;
 }
 .btn-secondary:hover{background:var(--fx-green-1); border-color:var(--fx-green-2)}
+.lang-btn{
+  background:transparent; color:var(--text-2); border:1px solid var(--border-strong);
+  height:33px; min-width:38px; padding:0 9px; border-radius:var(--radius);
+  font-size:12px; font-weight:600; cursor:pointer; transition:.13s; font-family:var(--font-mono);
+}
+.lang-btn:hover{background:var(--fx-green-1); border-color:var(--fx-green-2); color:var(--text)}
 
 .tb-status{display:flex; align-items:center; gap:12px; padding-left:13px; border-left:1px solid var(--border)}
 .tb-status .conn{font-size:11px}

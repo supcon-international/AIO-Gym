@@ -2,6 +2,7 @@
 // the ODE right-hand side, topology metadata, default control pairing and the
 // ideal-power reference for scoring. Same equations and numbers as the Python
 // reference, so behaviour matches. A model is integrated by ../sim/kernel.js.
+import { t } from '../i18n.js?v=3';
 
 const RHO = 1000, CP = 4186, G = 9.81, RHO_CP = RHO * CP;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -71,15 +72,15 @@ class CascadeModel {
   setConfig() {}
   metadata() {
     return {
-      scenario: 'cascade', topology: 'cascade', name: '多级加热水箱链 (串联)', n_tanks: 3,
+      scenario: 'cascade', topology: 'cascade', name: t('多级加热水箱链', 'Heated-Tank Cascade'), n_tanks: 3,
       tank_labels: ['T-1', 'T-2', 'T-3'],
-      actuators: { pumps: ['进料泵 P-01'], valves: ['出料阀 V-1', '出料阀 V-2', '出料阀 V-3'], heaters: ['加热器 E-1', '加热器 E-2', '加热器 E-3'] },
+      actuators: { pumps: [t('进料泵 P-01', 'Feed Pump P-01')], valves: [t('出料阀 V-1', 'Outlet V-1'), t('出料阀 V-2', 'Outlet V-2'), t('出料阀 V-3', 'Outlet V-3')], heaters: [t('加热器 E-1', 'Heater E-1'), t('加热器 E-2', 'Heater E-2'), t('加热器 E-3', 'Heater E-3')] },
       demand_valve_index: 2, controlled_levels: [0, 1, 2], height_max: this.heightMax,
       pump_flow_max: [0.0016], heater_max: [90000, 90000, 90000], config: {},
       trends: [
-        { label: '液位 Level (m)', field: 'levels', sp: 'h_sp', spIdx: [0, 1, 2], fmt: 2 },
-        { label: '温度 Temperature (°C)', field: 'temps', sp: 't_sp', spIdx: [0, 1, 2], fmt: 0 },
-        { label: '加热功率 Power (kW)', field: 'heater_power', scale: 0.001, fmt: 0 },
+        { label: t('液位 (m)', 'Level (m)'), field: 'levels', sp: 'h_sp', spIdx: [0, 1, 2], fmt: 2 },
+        { label: t('温度 (°C)', 'Temperature (°C)'), field: 'temps', sp: 't_sp', spIdx: [0, 1, 2], fmt: 0 },
+        { label: t('加热功率 (kW)', 'Heater Power (kW)'), field: 'heater_power', scale: 0.001, fmt: 0 },
       ],
     };
   }
@@ -168,18 +169,18 @@ class QuadrupleModel {
     if (cfg.gamma2 != null) this.gamma2 = Math.min(0.95, Math.max(0.05, +cfg.gamma2));
   }
   metadata() {
-    const phase = this.gamma1 + this.gamma2 > 1 ? '最小相位' : '非最小相位 (RHP 零点)';
+    const phase = this.gamma1 + this.gamma2 > 1 ? t('最小相位', 'Minimum-phase') : t('非最小相位 (RHP 零点)', 'Non-minimum-phase (RHP zero)');
     return {
-      scenario: 'quadruple', topology: 'quadruple', name: '四水箱过程 (Johansson 基准)', n_tanks: 4,
-      tank_labels: ['T-1 下', 'T-2 下', 'T-3 上', 'T-4 上'],
-      actuators: { pumps: ['泵 P-1', '泵 P-2'], valves: [], heaters: ['加热器 E-1', '加热器 E-2', '加热器 E-3', '加热器 E-4'] },
+      scenario: 'quadruple', topology: 'quadruple', name: t('四水箱过程 (Johansson 基准)', 'Quadruple-Tank (Johansson)'), n_tanks: 4,
+      tank_labels: [t('T-1 下', 'T-1 low'), t('T-2 下', 'T-2 low'), t('T-3 上', 'T-3 up'), t('T-4 上', 'T-4 up')],
+      actuators: { pumps: [t('泵 P-1', 'Pump P-1'), t('泵 P-2', 'Pump P-2')], valves: [], heaters: [t('加热器 E-1', 'Heater E-1'), t('加热器 E-2', 'Heater E-2'), t('加热器 E-3', 'Heater E-3'), t('加热器 E-4', 'Heater E-4')] },
       controlled_levels: [0, 1], height_max: this.heightMax,
       pump_flow_max: [1.3e-3, 1.3e-3], heater_max: this.p.heater_max,
       config: { gamma1: +this.gamma1.toFixed(3), gamma2: +this.gamma2.toFixed(3), gamma_sum: +(this.gamma1 + this.gamma2).toFixed(3), phase },
       trends: [
-        { label: '液位 Level (m)', field: 'levels', sp: 'h_sp', spIdx: [0, 1], fmt: 2 },
-        { label: '温度 Temperature (°C)', field: 'temps', sp: 't_sp', spIdx: [0, 1, 2, 3], fmt: 0 },
-        { label: '加热功率 Power (kW)', field: 'heater_power', scale: 0.001, fmt: 0 },
+        { label: t('液位 (m)', 'Level (m)'), field: 'levels', sp: 'h_sp', spIdx: [0, 1], fmt: 2 },
+        { label: t('温度 (°C)', 'Temperature (°C)'), field: 'temps', sp: 't_sp', spIdx: [0, 1, 2, 3], fmt: 0 },
+        { label: t('加热功率 (kW)', 'Heater Power (kW)'), field: 'heater_power', scale: 0.001, fmt: 0 },
       ],
     };
   }
@@ -234,15 +235,15 @@ class CSTRModel {
   setConfig() {}
   metadata() {
     return {
-      scenario: 'cstr', topology: 'cstr', name: '放热反应器 CSTR', n_tanks: 1,
-      tank_labels: ['R-1 反应器'],
-      actuators: { pumps: ['进料 Feed'], valves: [], heaters: ['冷却 Cooling'] },
+      scenario: 'cstr', topology: 'cstr', name: t('放热反应器 CSTR', 'Exothermic CSTR'), n_tanks: 1,
+      tank_labels: [t('R-1 反应器', 'R-1 reactor')],
+      actuators: { pumps: [t('进料', 'Feed')], valves: [], heaters: [t('冷却', 'Cooling')] },
       controlled_levels: [], height_max: [1],
       pump_flow_max: [this.p.Dmax], heater_max: [this.p.cool_max], config: {},
       trends: [
-        { label: '反应器温度 (°C)', field: 'temps', sp: 't_sp', spIdx: [0], fmt: 1 },
-        { label: '反应物浓度 Cₐ (mol/L)', field: 'conc', fmt: 3 },
-        { label: '冷却功率 (kW)', field: 'heater_power', scale: 0.001, fmt: 1 },
+        { label: t('反应器温度 (°C)', 'Reactor Temp (°C)'), field: 'temps', sp: 't_sp', spIdx: [0], fmt: 1 },
+        { label: t('反应物浓度 Cₐ (mol/L)', 'Concentration Cₐ (mol/L)'), field: 'conc', fmt: 3 },
+        { label: t('冷却功率 (kW)', 'Cooling Power (kW)'), field: 'heater_power', scale: 0.001, fmt: 1 },
       ],
     };
   }
@@ -287,14 +288,14 @@ class HVACModel {
   setConfig() {}
   metadata() {
     return {
-      scenario: 'hvac', topology: 'hvac', name: '双区 HVAC 温控', n_tanks: 2,
-      tank_labels: ['Z-1 房间', 'Z-2 房间'],
+      scenario: 'hvac', topology: 'hvac', name: t('双区 HVAC 温控', 'Two-Zone HVAC'), n_tanks: 2,
+      tank_labels: [t('Z-1 房间', 'Z-1 room'), t('Z-2 房间', 'Z-2 room')],
       actuators: { pumps: [], valves: [], heaters: ['HVAC Z-1', 'HVAC Z-2'] },
       controlled_levels: [], height_max: [1, 1],
       pump_flow_max: [], heater_max: [this.p.Pmax * 2, this.p.Pmax * 2], config: {},
       trends: [
-        { label: '室温 Room Temp (°C)', field: 'temps', sp: 't_sp', spIdx: [0, 1], fmt: 1 },
-        { label: 'HVAC 功率 (kW)', field: 'heater_power', scale: 0.001, fmt: 2 },
+        { label: t('室温 (°C)', 'Room Temp (°C)'), field: 'temps', sp: 't_sp', spIdx: [0, 1], fmt: 1 },
+        { label: t('HVAC 功率 (kW)', 'HVAC Power (kW)'), field: 'heater_power', scale: 0.001, fmt: 2 },
       ],
     };
   }

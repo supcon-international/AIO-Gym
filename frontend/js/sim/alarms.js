@@ -54,7 +54,7 @@ export class AlarmMonitor {
       const hot = s.temps.some((T) => T >= L.t_trip);
       const cool = s.temps.every((T) => T <= L.t_trip - L.t_reset_margin);
       if (hot) this.feedTrip = true; else if (cool) this.feedTrip = false;
-      if (this.feedTrip) { this.pumpTrip = true; add(-1, 'overtemp_interlock', 'critical', '进料 TRIPPED (over-temp / runaway protection)', 0); }
+      if (this.feedTrip) { this.pumpTrip = true; add(-1, 'overtemp_interlock', 'critical', 'Feed TRIPPED (over-temp / runaway protection)', 0); }
       else this.pumpTrip = false;
     }
 

@@ -2,12 +2,12 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=2';
-import { Integrator } from './kernel.js?v=2';
-import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=2';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=2';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=2';
-import { ScoreKeeper } from './scoring.js?v=2';
+import { makeModel } from './models.js?v=3';
+import { Integrator } from './kernel.js?v=3';
+import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=3';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=3';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=3';
+import { ScoreKeeper } from './scoring.js?v=3';
 
 const TICK = 0.05;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);

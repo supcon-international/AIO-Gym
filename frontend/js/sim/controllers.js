@@ -2,6 +2,7 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
+import { t } from '../i18n.js?v=3';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);
@@ -101,7 +102,7 @@ export class PIDController {
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js';
 
 export class RLController {
-  constructor(model) { this.session = null; this.ready = false; this.status = '未加载策略'; this.bind(model); }
+  constructor(model) { this.session = null; this.ready = false; this._st = { k: 'idle' }; this.bind(model); }
   bind(model) {
     this.model = model;
     const [nP, nV, nH] = model.actuatorCounts();
@@ -139,21 +140,30 @@ export class RLController {
       for (let i = 0; i < this.nV; i++) act.valves.push(clamp01(a[k++]));
       for (let i = 0; i < this.nH; i++) act.heaters.push(clamp01(a[k++]));
       this.lastAction = act;
-    } catch (e) { this.status = 'ONNX 推理出错: ' + e.message; this.ready = false; }
+    } catch (e) { this._st = { k: 'err', msg: e.message }; this.ready = false; }
   }
 
   async loadPolicy(src) {
-    this.status = '加载中…';
+    this._st = { k: 'loading' };
     try {
       if (!window.ort) await loadScript(ORT_CDN);
       const ort = window.ort;
       const session = await ort.InferenceSession.create(src);
       this.session = session; this.ready = true;
-      this.status = `策略已加载 (obs=${this.obsLen}, act=${this.actLen})`;
+      this._st = { k: 'loaded' };
       return true;
-    } catch (e) { this.session = null; this.ready = false; this.status = '加载失败: ' + e.message; return false; }
+    } catch (e) { this.session = null; this.ready = false; this._st = { k: 'fail', msg: e.message }; return false; }
   }
-  getStatus() { return { ready: this.ready, status: this.status, obsLen: this.obsLen, actLen: this.actLen }; }
+  // Localize the status at read-time so a language toggle updates it immediately.
+  getStatus() {
+    const s = this._st, st =
+      s.k === 'loading' ? t('加载中…', 'Loading…')
+      : s.k === 'loaded' ? t(`策略已加载 (obs=${this.obsLen}, act=${this.actLen})`, `Policy loaded (obs=${this.obsLen}, act=${this.actLen})`)
+      : s.k === 'err' ? t('ONNX 推理出错', 'ONNX inference error') + ': ' + s.msg
+      : s.k === 'fail' ? t('加载失败', 'Load failed') + ': ' + s.msg
+      : t('未加载策略', 'No policy loaded');
+    return { ready: this.ready, status: st, obsLen: this.obsLen, actLen: this.actLen };
+  }
 }
 
 function loadScript(src) {
