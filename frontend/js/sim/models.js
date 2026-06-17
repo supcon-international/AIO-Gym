@@ -86,6 +86,11 @@ class CascadeModel {
 }
 
 // ---------------- Scenario 2: Johansson quadruple tank (8 states) ----------------
+// Canonical equations: K.H. Johansson, "The Quadruple-Tank Process", IEEE TCST
+// 2000. h_out = a√(2g·h); pump1→γ1·tank1 + (1−γ1)·tank4, pump2→γ2·tank2 +
+// (1−γ2)·tank3; upper tanks drain into the diagonal lower tank. Transmission
+// zero is in the RHP (non-minimum-phase) when 0 < γ1+γ2 < 1, in the LHP when
+// 1 < γ1+γ2 < 2 — set via the γ sliders. (+ a heated-tank thermal extension.)
 class QuadrupleModel {
   constructor() {
     this.scenario = 'quadruple';
