@@ -1,0 +1,67 @@
+/* ============================================================
+   Tier0 Design System tokens for the Heated-Tank Sandbox.
+   Derived from tier0-design: tokens/core.css + product.css.
+   Light enterprise workspace; FX Green as accent only.
+   ============================================================ */
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../vendor/fonts/IBMPlexSans-VariableFont_wdth,wght.ttf") format("truetype");
+  font-weight: 100 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../vendor/fonts/IBMPlexMono-Regular.ttf") format("truetype");
+  font-weight: 400 600; font-style: normal; font-display: swap;
+}
+
+:root {
+  /* Brand */
+  --fx-black:   #050B14;
+  --fx-lime:    #B2ED1D;   /* brand accent on dark only */
+  --fx-deep-green: #73B200;
+
+  /* Green scale */
+  --fx-green-1: #F0FBD2;   /* subtle bg, row hover, tag bg, active-soft */
+  --fx-green-2: #DDF59C;
+  --fx-green-4: #CCF368;   /* light-UI primary/highlight button fill */
+  --fx-on-lime: #333333;
+
+  /* Neutral ink */
+  --fx-black-0: #050B14;
+  --fx-black-4: #585C62;
+  --fx-black-2: #ACAEB1;
+  --fx-black-1: #CDCED0;
+
+  /* Surface & border */
+  --fx-white:   #FFFFFF;
+  --bg-canvas:  #F5F5F5;
+  --bg-secondary:#FAFAFA;
+  --border:     #ECECEC;
+  --border-strong: #CCCCCC;
+
+  /* Semantic text */
+  --text:       var(--fx-black-0);
+  --text-2:     var(--fx-black-4);
+  --text-3:     var(--fx-black-2);
+
+  /* Status (control-room semantics; not in core but conventional) */
+  --ok:    #2E8B3D;
+  --warn:  #C77700;
+  --warn-bg: #FBF1DC;
+  --crit:  #C0392B;
+  --crit-bg: #FBE7E4;
+  --info:  #2563EB;
+
+  /* Data-viz palette (per tank) — readable on white, distinct from lime accent */
+  --series-1: #2563EB;
+  --series-2: #7C3AED;
+  --series-3: #DB2777;
+  --series-4: #0D9488;
+  --series-5: #D97706;
+
+  /* Radii / spacing / type */
+  --radius: 4px;
+  --radius-panel: 8px;
+  --font-sans: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+}

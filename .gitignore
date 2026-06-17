@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node / OS
+node_modules/
+.DS_Store
+
+# Trained policies (build artifacts)
+*.onnx
+
+# Editor / tooling
+.claude/
+.vscode/

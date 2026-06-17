@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIO-Gym · 过程控制环境</title>
+  <link rel="stylesheet" href="./vendor/uPlot.min.css" />
+  <link rel="stylesheet" href="./css/tier0.css" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <!-- ===== Topbar (Header + Controls) ===== -->
+  <header class="topbar">
+    <!-- scenario switcher (doubles as the page title) -->
+    <div class="scn-switch" id="scn-switch">
+      <button class="scn-btn" id="scn-btn" aria-haspopup="true">
+        <span class="scn-mark" id="scn-mark">◫</span>
+        <span class="scn-titles">
+          <span class="scn-name" id="scn-title">多级加热水箱链</span>
+          <span class="scn-path mono" id="scn-path">process / heated-tank-cascade</span>
+        </span>
+        <span class="scn-chev">▾</span>
+      </button>
+      <div class="scn-menu" id="scenario-seg" hidden>
+        <button data-scenario="cascade" class="active">
+          <span class="mk">▤</span><span class="mt">多级加热水箱链<small>串联 · 液位+温度 · 入门</small></span>
+        </button>
+        <button data-scenario="quadruple">
+          <span class="mk">◫</span><span class="mt">四水箱基准<small>Johansson · 交叉耦合 · 可调 RHP 零点</small></span>
+        </button>
+        <button data-scenario="cstr">
+          <span class="mk">⊚</span><span class="mt">放热反应器 CSTR<small>放热反应 · 冷却控温 · 会热失控</small></span>
+        </button>
+        <button data-scenario="hvac">
+          <span class="mk">⌂</span><span class="mt">双区 HVAC 温控<small>两房间耦合 · 抗室外扰动 · 易上手</small></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="tb-spacer"></div>
+
+    <div class="ctl-group">
+      <span class="ctl-lbl">控制</span>
+      <div class="seg" id="mode-seg" title="控制模式">
+        <button data-mode="manual" class="active">手动</button>
+        <button data-mode="pid">PID</button>
+        <button data-mode="rl" title="加载 ONNX 策略">RL</button>
+        <button data-mode="ext" title="由外部 MQTT agent 控制">外部</button>
+      </div>
+    </div>
+
+    <div class="tb-speed" title="仿真倍速">
+      <span class="ctl-lbl">倍速</span>
+      <input type="range" id="speed" min="0.5" max="10" step="0.5" value="1" />
+      <span id="speed-val" class="mono">1.0×</span>
+    </div>
+
+    <button id="btn-run" class="btn-primary">暂停</button>
+    <button id="btn-reset" class="btn-secondary">复位</button>
+
+    <div class="tb-status">
+      <span class="conn off" id="conn">● 连接中</span>
+      <span class="clk"><span class="lbl">SIM-T</span><span id="clock" class="mono">0.0s</span></span>
+    </div>
+  </header>
+
+  <!-- ===== Workspace ===== -->
+  <main class="grid">
+    <section class="col col-left">
+      <div class="panel" id="control-panel">
+        <div class="panel-h"><span>控制面板</span><span id="control-sub" class="tag">手动</span></div>
+        <div class="panel-b" id="control-body"></div>
+      </div>
+      <div class="panel" id="disturb-panel">
+        <div class="panel-h"><span>扰动 / 故障</span>
+          <label class="auto-ev"><input type="checkbox" id="auto-events" /> 自动</label>
+        </div>
+        <div class="panel-b" id="disturb-body"></div>
+      </div>
+      <div class="panel" id="mqtt-panel">
+        <div class="panel-h"><span>外部接口 MQTT / UNS</span><span id="mqtt-status" class="tag">未连接</span></div>
+        <div class="panel-b" id="mqtt-body"></div>
+      </div>
+    </section>
+
+    <section class="col col-center">
+      <div class="panel schematic-panel">
+        <div class="panel-h"><span>工艺流程 P&amp;ID</span><span id="env-readout" class="muted mono"></span></div>
+        <div class="panel-b" id="schematic-host"></div>
+      </div>
+      <div class="charts" id="charts-host"></div>
+    </section>
+
+    <section class="col col-right">
+      <div class="panel" id="score-panel">
+        <div class="panel-h"><span>评分 / KPI</span><span id="score-mode" class="muted mono"></span></div>
+        <div class="panel-b" id="score-body"></div>
+      </div>
+      <div class="panel alarm-panel">
+        <div class="panel-h"><span>报警 / 联锁</span><span id="alarm-count" class="badge">0</span></div>
+        <div class="panel-b" id="alarm-body"><div class="no-alarm">— 无报警 —</div></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./vendor/uPlot.iife.min.js"></script>
+  <script type="module" src="./js/app.js?v=1"></script>
+</body>
+</html>
