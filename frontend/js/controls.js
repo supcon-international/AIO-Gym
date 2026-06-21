@@ -3,7 +3,7 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=3';
+import { t } from './i18n.js?v=5';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -119,6 +119,53 @@ export function buildControls(bus, meta, catalog) {
     return w;
   }
 
+  // APC-style MPC: CV setpoints (shared regulatory targets) + the APC tuning knobs.
+  function mpcPanel(frame) {
+    const sp = frame?.setpoints || { h_sp: [], t_sp: [] };
+    const cfg = frame?.mpc || {};
+    const ctrl = meta.controlled_levels || [];
+    const w = h('div');
+    w.append(h('div', { class: 'group-title' }, t('APC 配置', 'APC setup')));
+    w.append(h('div', { class: 'rl-status' }, t(`CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · 预测 ${cfg.P ?? '?'} 步 · 周期 ${cfg.Ts ?? '?'}s`, `CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · horizon ${cfg.P ?? '?'} · Ts ${cfg.Ts ?? '?'}s`)));
+
+    // CV setpoints (the controlled levels + every temperature)
+    if (ctrl.length) {
+      w.append(h('div', { class: 'group-title' }, t('CV 设定 · 液位 (m)', 'CV setpoints · level (m)')));
+      ctrl.forEach((idx) => {
+        const inp = h('input', { type: 'number', step: 0.01, min: 0, max: 0.8, value: (sp.h_sp[idx] ?? 0.4).toFixed(2), onchange: sendSP });
+        inp.dataset.hsp = idx;
+        w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[idx]), inp, h('span')));
+      });
+    }
+    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('CV 设定 · 温度 (°C)', 'CV setpoints · temp (°C)')));
+    for (let i = 0; i < n; i++) {
+      const inp = h('input', { type: 'number', step: 1, min: 10, max: 90, value: (sp.t_sp[i] ?? 50).toFixed(0), onchange: sendSP });
+      inp.dataset.tsp = i;
+      w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[i]), inp, h('span')));
+    }
+    function sendSP() {
+      const h_sp = Array(n).fill(0);
+      w.querySelectorAll('[data-hsp]').forEach((e) => { h_sp[+e.dataset.hsp] = +e.value; });
+      const t_sp = Array(n).fill(50);
+      w.querySelectorAll('[data-tsp]').forEach((e) => { t_sp[+e.dataset.tsp] = +e.value; });
+      bus.send({ type: 'set_setpoints', h_sp, t_sp });
+    }
+
+    // APC tuning knobs
+    const tune = h('details', { class: 'tune' }, h('summary', {}, t('MPC 整定', 'MPC tuning')));
+    const tbox = h('div', { class: 'gain-grid', style: 'grid-template-columns:auto 1fr' });
+    const row = (label, key, val, step) => {
+      const inp = h('input', { type: 'number', step, value: val, onchange: (e) => bus.send({ type: 'set_mpc', [key]: +e.target.value }) });
+      tbox.append(h('label', {}, label), inp);
+    };
+    row(t('移动抑制', 'Move suppression'), 'moveSupp', cfg.moveSupp ?? 0.8, 0.1);
+    row(t('最大移动 / 周期', 'Max move / cycle'), 'duMax', cfg.duMax ?? 0.15, 0.01);
+    row(t('预测步长', 'Prediction horizon'), 'P', cfg.P ?? 40, 5);
+    tune.append(tbox); w.append(tune);
+    w.append(h('div', { class: 'hint' }, t('MV 经执行器写入;CV 预测后求解约束 QP，无静差。', 'MVs write to the actuators; CVs are predicted and a constrained QP is solved, offset-free.')));
+    return w;
+  }
+
   // quadruple-tank split-ratio config (the RHP-zero knob)
   function configPanel(frame) {
     const cfg = (frame?.meta?.config) || meta.config || {};
@@ -209,6 +256,7 @@ export function buildControls(bus, meta, catalog) {
     renderControl(host, m, frame, subEl) {
       mode = m; host.innerHTML = '';
       if (m === 'pid') { host.append(pidPanel(frame)); if (subEl) subEl.textContent = t('PID 自动', 'PID auto'); }
+      else if (m === 'mpc') { host.append(mpcPanel(frame)); if (subEl) subEl.textContent = 'MPC'; }
       else if (m === 'rl') { host.append(rlPanel(frame)); if (subEl) subEl.textContent = t('RL 策略', 'RL policy'); }
       else if (m === 'ext') { host.append(extPanel(frame)); if (subEl) subEl.textContent = t('外部 MQTT', 'External MQTT'); }
       else { host.append(manualPanel()); if (subEl) subEl.textContent = t('手动', 'Manual'); }

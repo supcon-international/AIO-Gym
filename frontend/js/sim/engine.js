@@ -2,12 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=3';
-import { Integrator } from './kernel.js?v=3';
-import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=3';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=3';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=3';
-import { ScoreKeeper } from './scoring.js?v=3';
+import { makeModel } from './models.js?v=5';
+import { Integrator } from './kernel.js?v=5';
+import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=5';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=5';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=5';
+import { ScoreKeeper } from './scoring.js?v=5';
+import { Realism } from './realism.js?v=5';
+import { MPCController } from './mpc.js?v=5';
 
 const TICK = 0.05;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -24,11 +26,14 @@ export class Engine {
     this.pid = new PIDController(this.model);
     this.rl = new RLController(this.model);
     this.ext = new ExternalController(this.model);
-    this.controllers = { manual: this.manual, pid: this.pid, rl: this.rl, ext: this.ext };
+    this.mpc = new MPCController(this.model);
+    this.controllers = { manual: this.manual, pid: this.pid, mpc: this.mpc, rl: this.rl, ext: this.ext };
     this.mode = 'manual';
     this.disturb = new DisturbanceManager(this.model);
     this.alarmsMon = new AlarmMonitor(this.model);
     this.score = new ScoreKeeper(this.model);
+    this.realism = new Realism(this.model);   // instrument + actuator imperfections
+    this.meas = null;                          // latest measured state (what controllers/RL see)
     this._initSetpoints();
     this.running = true; this.speed = 1; this.simT = 0;
     this.autoEvents = false; this._evClock = 0; this._evNext = 12;
@@ -56,7 +61,7 @@ export class Engine {
 
   reset() {
     this.integ.reset(this.model.initialState());
-    this.alarmsMon.reset(); this.score.reset(); this.pid.reset(); this.simT = 0;
+    this.alarmsMon.reset(); this.score.reset(); this.pid.reset(); this.realism.reset(); this.meas = null; this.simT = 0;
     const [nP, nV, nH] = this.model.actuatorCounts();
     this.lastAct = { pumps: new Array(nP).fill(0), valves: new Array(nV).fill(0), heaters: new Array(nH).fill(0) };
     this.state = this.integ.getState(this.lastAct, this.disturb.environment(), 0);
@@ -67,8 +72,8 @@ export class Engine {
     if (scenario === this.scenario) return this.reset();
     this.scenario = scenario; this.model = makeModel(scenario); this.n = this.model.n;
     this.integ = new Integrator(this.model);
-    this.manual.bind(this.model); this.pid.bind(this.model); this.rl.bind(this.model); this.ext.bind(this.model);
-    this.alarmsMon.bind(this.model); this.score.bind(this.model); this.disturb.bind(this.model);
+    this.manual.bind(this.model); this.pid.bind(this.model); this.mpc.bind(this.model); this.rl.bind(this.model); this.ext.bind(this.model);
+    this.alarmsMon.bind(this.model); this.score.bind(this.model); this.disturb.bind(this.model); this.realism.bind(this.model);
     this.disturb.clearAll(); this._initSetpoints(); this.reset();
   }
 
@@ -98,10 +103,13 @@ export class Engine {
   _tick(dt) {
     this._autoTick(dt);
     const sp = this.setpoints, ctrl = this.controllers[this.mode];
-    const meas = this.disturb.applySensorFaults(this.state);
+    // measurement chain: true state -> injected sensor faults -> instrument realism (deadtime/lag/noise/bias)
+    const meas = this.realism.measure(this.disturb.applySensorFaults(this.state), dt);
+    this.meas = meas;
     const raw = ctrl.compute(meas, sp, dt);
-    [this.alarms, this.mask] = this.alarmsMon.evaluate(this.state);
-    let eff = this.disturb.applyActuatorFaults(raw);
+    [this.alarms, this.mask] = this.alarmsMon.evaluate(this.state);   // interlocks act on the true state
+    // actuation chain: command -> injected actuator faults -> actuator realism (stiction/slew) -> protective trips
+    let eff = this.realism.actuate(this.disturb.applyActuatorFaults(raw), dt);
     for (let i = 0; i < eff.heaters.length; i++) if (this.mask.heater_trip[i]) eff.heaters[i] = 0;
     if (this.mask.pump_trip) eff.pumps = eff.pumps.map(() => 0);
     eff = clampAct(eff);
@@ -123,7 +131,7 @@ export class Engine {
     // scenario's custom trend charts get their data without touching this list.
     for (const k in s) { if (!(k in state) && k !== 't' && Array.isArray(s[k])) state[k] = s[k].map((x) => r(x, 4)); }
     return {
-      type: 'telemetry', t: r(s.t, 2), running: this.running, speed: this.speed,
+      type: 'telemetry', t: r(s.t, 2), running: this.running, speed: this.speed, fidelity: this.realism.level,
       scenario: this.scenario, mode: this.mode, n_tanks: this.n, meta: this.model.metadata(),
       setpoints: { h_sp: this.setpoints.h_sp.map((x) => r(x, 4)), t_sp: this.setpoints.t_sp.map((x) => r(x, 2)) },
       state,
@@ -131,7 +139,7 @@ export class Engine {
       command: this.manual.snapshot(),
       alarms: this.alarms, interlocks: { heater_trip: this.mask.heater_trip.slice(), pump_trip: this.mask.pump_trip },
       score: this.score.report(), disturbances: this.disturb.status(),
-      pid: this.pid.getConfig(), rl: this.rl.getStatus(), limits: this._limits(),
+      pid: this.pid.getConfig(), mpc: this.mpc.getConfig(), rl: this.rl.getStatus(), limits: this._limits(),
     };
   }
 
@@ -141,7 +149,7 @@ export class Engine {
   }
 
   // RL/MQTT helpers: flat observation vector and a per-step reward.
-  obs() { return obsVector(this.model, this.state, this.setpoints); }
+  obs() { return obsVector(this.model, this.meas || this.state, this.setpoints); }
   actionDim() { const [p, v, h] = this.model.actuatorCounts(); return p + v + h; }
   reward() {
     const r = this.score.report();
@@ -175,6 +183,8 @@ export class Engine {
       case 'clear_disturbance': this.disturb.clear(msg.dtype); break;
       case 'clear_disturbances': this.disturb.clearAll(); break;
       case 'set_auto_events': this.autoEvents = !!msg.on; this._evClock = 0; this._evNext = 4; if (!msg.on) this.disturb.clearAll(); break;
+      case 'set_fidelity': this.realism.setLevel(msg.level); break;
+      case 'set_mpc': this.mpc.setConfig(msg); break;
     }
   }
 }

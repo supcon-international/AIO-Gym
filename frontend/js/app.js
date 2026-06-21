@@ -1,12 +1,12 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=3';
-import { buildSchematic } from './schematic.js?v=3';
-import { buildCharts } from './charts.js?v=3';
-import { buildControls } from './controls.js?v=3';
-import { MqttBridge } from './mqtt.js?v=3';
-import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=3';
+import { Engine, CATALOG } from './sim/engine.js?v=5';
+import { buildSchematic } from './schematic.js?v=5';
+import { buildCharts } from './charts.js?v=5';
+import { buildControls } from './controls.js?v=5';
+import { MqttBridge } from './mqtt.js?v=5';
+import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=5';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;
@@ -102,6 +102,11 @@ function wireTopbar() {
   $('#btn-run').addEventListener('click', () => { running = !running; bus.send({ type: 'set_running', running }); setRunBtn(); });
   $('#btn-reset').addEventListener('click', () => bus.send({ type: 'reset' }));
   $('#lang-btn').addEventListener('click', () => toggleLang());
+  $('#fidelity-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    bus.send({ type: 'set_fidelity', level: +b.dataset.fid });
+    $('#fidelity-seg').querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+  });
   $('#auto-events').addEventListener('change', (e) => bus.send({ type: 'set_auto_events', on: e.target.checked }));
   setRunBtn();
 }
@@ -145,6 +150,8 @@ function updateTopbar(f) {
   const MK = { cascade: '▤', quadruple: '◫', cstr: '⊚', hvac: '⌂' };
   const mk = $('#scn-mark'); if (mk) mk.textContent = MK[f.scenario] || '▤';
   const p = $('#scn-path'); if (p) p.textContent = `process / ${f.scenario} · ${f.n_tanks}-unit`;
+  const fseg = $('#fidelity-seg');
+  if (fseg && f.fidelity != null) fseg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', +b.dataset.fid === (f.fidelity > 0 ? 1 : 0)));
   const c = f.state.t_cold.toFixed(1), a = f.state.t_amb.toFixed(1);
   $('#env-readout').textContent = f.scenario === 'hvac'
     ? t(`室外 ${a}°C`, `Outdoor ${a}°C`)

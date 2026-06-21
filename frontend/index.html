@@ -44,6 +44,7 @@
       <div class="seg" id="mode-seg" title="控制模式 / Control mode">
         <button data-mode="manual" class="active" data-zh="手动" data-en="Manual">手动</button>
         <button data-mode="pid">PID</button>
+        <button data-mode="mpc" title="APC 风格多变量 MPC / APC-style MPC">MPC</button>
         <button data-mode="rl" title="加载 ONNX 策略 / load ONNX policy">RL</button>
         <button data-mode="ext" data-zh="外部" data-en="Ext">外部</button>
       </div>
@@ -53,6 +54,14 @@
       <span class="ctl-lbl" data-zh="倍速" data-en="Speed">倍速</span>
       <input type="range" id="speed" min="0.5" max="10" step="0.5" value="1" />
       <span id="speed-val" class="mono">1.0×</span>
+    </div>
+
+    <div class="ctl-group" title="工况保真度:真实=仪表与执行机构带噪声/迟延/滞后/黏滞 · Plant fidelity">
+      <span class="ctl-lbl" data-zh="工况" data-en="Plant">工况</span>
+      <div class="seg sm" id="fidelity-seg">
+        <button data-fid="0" data-zh="理想" data-en="Ideal">理想</button>
+        <button data-fid="1" class="active" data-zh="真实" data-en="Real">真实</button>
+      </div>
     </div>
 
     <button id="btn-run" class="btn-primary">暂停</button>
@@ -105,6 +114,6 @@
   </main>
 
   <script src="./vendor/uPlot.iife.min.js"></script>
-  <script type="module" src="./js/app.js?v=3"></script>
+  <script type="module" src="./js/app.js?v=5"></script>
 </body>
 </html>
