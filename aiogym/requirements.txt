@@ -1,0 +1,13 @@
+# Native Gymnasium env — core
+numpy>=1.24
+gymnasium>=0.29
+
+# Training (optional; install when you train)
+# stable-baselines3>=2.3      # SAC baseline (train_sac.py)
+# torch>=2.2
+# onnx>=1.16                   # export the trained policy...
+# onnxruntime>=1.17            # ...to run it in the browser AIO-Gym, head-to-head with MPC
+#
+# RLPD: official impl is JAX (https://github.com/ikostrikov/rlpd); in PyTorch it
+# is SAC + offline data in the replay buffer + critic LayerNorm + critic ensemble
+# + symmetric sampling. Cal-QL / IQL: see CORL (https://github.com/tinkoff-ai/CORL).

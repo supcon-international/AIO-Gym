@@ -1,0 +1,53 @@
+{
+  "scenario": "cstr",
+  "PID": {
+    "name": "PID",
+    "return": 2396.32038523777,
+    "return_std": 0.0,
+    "track": 41.3555608774458,
+    "constraint": 0.0
+  },
+  "MPC": {
+    "name": "MPC",
+    "return": 4220.304992307355,
+    "return_std": 0.0,
+    "track": 37.02556219423371,
+    "constraint": 0.0
+  },
+  "RLPD": {
+    "return": 5011.892186641575,
+    "return_std": 0.0,
+    "best": 5011.892186641575,
+    "track": 457.46669856203545,
+    "constraint": 9.901215632039627
+  },
+  "history": [
+    {
+      "step": 1500,
+      "return": 5011.892186641575
+    },
+    {
+      "step": 3000,
+      "return": 4921.019646750067
+    },
+    {
+      "step": 4500,
+      "return": 4798.537165749373
+    },
+    {
+      "step": 6000,
+      "return": 4982.592879816643
+    },
+    {
+      "step": 7500,
+      "return": 3991.7361543351703
+    },
+    {
+      "step": 9000,
+      "return": 3317.0064197963366
+    }
+  ],
+  "beats_pid": true,
+  "beats_mpc": true,
+  "margin_vs_mpc_pct": 18.756634787701394
+}

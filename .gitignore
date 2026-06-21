@@ -13,3 +13,7 @@ node_modules/
 # Editor / tooling
 .claude/
 .vscode/
+
+# but DO commit the browser RL policy
+!frontend/models/
+!frontend/models/*.onnx
