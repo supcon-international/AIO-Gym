@@ -3,7 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=5';
+import { t } from './i18n.js?v=6';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=6';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -227,15 +228,35 @@ export function buildControls(bus, meta, catalog) {
   }
   const labelFor = (pk) => ({ value: t('幅度', 'Amplitude'), level_std: t('液位σ', 'Level σ'), temp_std: t('温度σ', 'Temp σ') }[pk] || pk);
 
-  // RL: load a trained ONNX policy (trained offline) and run it in-browser.
+  // RL: pick a built-in trained policy (or load a custom .onnx) and run it in-browser.
   function rlPanel(frame) {
     const rl = frame?.rl || {};
+    const scn = frame?.scenario;
     const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('RL 策略 (ONNX)', 'RL policy (ONNX)')));
+    w.append(h('div', { class: 'group-title' }, t('RL 策略', 'RL policy')));
     w.append(h('div', { class: 'rl-status', id: 'rl-status' }, rl.status || t('未加载策略', 'No policy loaded')));
+
+    // Built-in policies — selectable directly. Picking one auto-switches to its
+    // scenario (each policy's obs/act contract is plant-specific) then loads it.
+    const sel = h('select', { class: 'rl-builtin', onchange: (e) => {
+      const p = BUILTIN_POLICIES.find((x) => x.id === e.target.value);
+      if (!p) return;
+      if (p.scenario !== scn) bus.send({ type: 'set_scenario', scenario: p.scenario });
+      bus.send({ type: 'set_rl_policy', src: p.url });
+    } });
+    sel.append(h('option', { value: '' }, t('内置策略…', 'Built-in policy…')));
+    for (const p of BUILTIN_POLICIES) {
+      const tag = p.scenario !== scn ? t('（切到 ' + p.scenario + '）', ' (→ ' + p.scenario + ')') : '';
+      sel.append(h('option', { value: p.id }, t(p.zh, p.en) + tag));
+    }
+    w.append(h('label', { class: 'rl-load' }, h('span', {}, t('内置策略', 'Built-in')), sel));
+    const cur = BUILTIN_POLICIES.find((p) => p.scenario === scn);
+    if (cur) w.append(h('div', { class: 'hint' }, t(cur.noteZh, cur.noteEn)));
+
+    // Custom override: load your own trained/online-adapted .onnx by file or URL.
     const file = h('input', { type: 'file', accept: '.onnx',
       onchange: (e) => { const f = e.target.files[0]; if (f) f.arrayBuffer().then((b) => bus.send({ type: 'set_rl_policy', src: new Uint8Array(b) })); } });
-    w.append(h('label', { class: 'rl-load' }, h('span', {}, t('选择 .onnx 策略文件', 'Choose an .onnx policy file')), file));
+    w.append(h('label', { class: 'rl-load' }, h('span', {}, t('自定义 .onnx', 'Custom .onnx')), file));
     const url = h('input', { type: 'text', placeholder: t('models/policy.onnx 或 URL', 'models/policy.onnx or URL') });
     w.append(h('div', { class: 'dist-param' }, url, h('button', { class: 'mini', onclick: () => { if (url.value) bus.send({ type: 'set_rl_policy', src: url.value }); } }, t('加载', 'Load'))));
     w.append(h('div', { class: 'hint' }, t(`契约 obs=${rl.obsLen ?? '?'} · act=${rl.actLen ?? '?'}，动作 ∈[0,1]`, `Contract obs=${rl.obsLen ?? '?'} · act=${rl.actLen ?? '?'}, action ∈[0,1]`)));

@@ -2,7 +2,7 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
-import { t } from '../i18n.js?v=5';
+import { t } from '../i18n.js?v=6';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);
@@ -101,10 +101,24 @@ export class PIDController {
 // onnxruntime-web is loaded on demand (only when RL mode is used).
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js';
 
+// Policies bundled under frontend/models/. Each is scenario-specific (the obs/act
+// contract differs per plant), so selecting one switches the sim to its scenario
+// before loading. Drop a new .onnx in frontend/models/ and add a row here.
+export const BUILTIN_POLICIES = [
+  {
+    id: 'rlpd_cstr_econ', scenario: 'cstr', url: './models/rlpd_cstr_econ.onnx',
+    zh: 'RLPD · CSTR 经济最优', en: 'RLPD · CSTR economic',
+    noteZh: '产量最大化，回报 5011 > MPC 4220 > PID 2396（强过两者）',
+    noteEn: 'Production-max; return 5011 > MPC 4220 > PID 2396 (beats both)',
+  },
+];
+
 export class RLController {
   constructor(model) { this.session = null; this.ready = false; this._st = { k: 'idle' }; this.bind(model); }
   bind(model) {
     this.model = model;
+    // a policy is scenario-specific (obs/act dims differ) — drop any loaded one on (re)bind
+    this.session = null; this.ready = false; this._st = { k: 'idle' };
     const [nP, nV, nH] = model.actuatorCounts();
     this.nP = nP; this.nV = nV; this.nH = nH;
     this.ctrl = model.controlledLevels();
@@ -149,10 +163,27 @@ export class RLController {
       if (!window.ort) await loadScript(ORT_CDN);
       const ort = window.ort;
       const session = await ort.InferenceSession.create(src);
+      // Validate the policy's obs/act dims against the current scenario up front,
+      // so a mismatched policy fails loudly once at load — not silently every tick.
+      const probe = new ort.Tensor('float32', new Float32Array(this.obsLen), [1, this.obsLen]);
+      const feeds = {}; feeds[session.inputNames[0]] = probe;
+      const out = await session.run(feeds);
+      const aLen = out[session.outputNames[0]].data.length;
+      if (aLen !== this.actLen) throw new Error(`__DIM__act ${aLen} ${this.actLen}`);
       this.session = session; this.ready = true;
       this._st = { k: 'loaded' };
       return true;
-    } catch (e) { this.session = null; this.ready = false; this._st = { k: 'fail', msg: e.message }; return false; }
+    } catch (e) { this.session = null; this.ready = false; this._st = { k: 'fail', msg: this._hint(e.message) }; return false; }
+  }
+  // Turn an onnxruntime dimension error into actionable guidance (which scenario the policy fits).
+  _hint(msg) {
+    const dim = /Got:\s*(\d+)\s*Expected:\s*(\d+)/.exec(msg);       // obs mismatch: Got=scenario, Expected=policy
+    if (dim) return t(`策略输入维度=${dim[2]}，与当前场景 obs=${dim[1]} 不匹配——请切到匹配场景或选用对应策略`,
+                      `policy expects obs=${dim[2]} but this scenario is obs=${dim[1]} — switch scenario or pick a matching policy`);
+    const am = /^__DIM__act (\d+) (\d+)/.exec(msg);                  // act mismatch
+    if (am) return t(`策略输出维度=${am[1]}，与当前场景 act=${am[2]} 不匹配`,
+                     `policy outputs act=${am[1]} but this scenario needs act=${am[2]}`);
+    return msg;
   }
   // Localize the status at read-time so a language toggle updates it immediately.
   getStatus() {
