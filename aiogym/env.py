@@ -91,6 +91,7 @@ class AIOGymNativeEnv(gym.Env):
     def __init__(self, scenario="cascade", control_dt=0.5, episode_steps=600,
                  reward_mode="kpi", dynamic=True, randomize=True, randomize_setpoints=True,
                  randomize_plant=False, plant_drift=False, integral_obs=False, action_mode="actuator",
+                 noise=False, noise_pct=0.01, custom_reward=None,
                  terminate_on_runaway=False, reward_scale=0.03, w_prod=1000.0, w_energy=2.0, w_constraint=8.0):
         super().__init__()
         self.scenario = scenario
@@ -103,6 +104,9 @@ class AIOGymNativeEnv(gym.Env):
         self.plant_drift = plant_drift            # slow within-episode parameter drift
         self.randomize = randomize
         self.randomize_setpoints = randomize_setpoints
+        self.noise = noise                        # measurement noise on observed levels/temps
+        self.noise_pct = noise_pct                # std as a fraction of the per-quantity scale
+        self.custom_reward = custom_reward         # optional callable(env, levels, temps, act) -> float
         self.terminate_on_runaway = terminate_on_runaway
         # legacy economic-mode weights (CSTR)
         self.w_prod, self.w_energy, self.w_constraint = w_prod, w_energy, w_constraint
@@ -155,6 +159,10 @@ class AIOGymNativeEnv(gym.Env):
 
     def _obs(self):
         levels, temps = self.model.levels_temps(self.integ.x)
+        if self.noise:                            # measurement noise on observed state (reward uses true state)
+            rng = self.np_random
+            levels = [l + float(rng.normal(0, self.noise_pct * 0.5)) for l in levels]
+            temps = [t + float(rng.normal(0, self.noise_pct * 10.0)) for t in temps]
         o = obs_vector(self.model, levels, temps, self.t_cold, self.t_amb, self.h_sp, self.t_sp)
         if self.integral_obs:
             o = o + [it / I_TEMP_MAX for it in self._itemp] + [il / I_LEVEL_MAX for il in self._ilevel]
@@ -249,11 +257,20 @@ class AIOGymNativeEnv(gym.Env):
             reward = -(track + 0.03 * energy + 5.0 * con)
             profit = 0.0
 
+        if self.custom_reward is not None:               # user-supplied reward overrides
+            reward = float(self.custom_reward(self, levels, temps, act))
+
         terminated = bool(self.terminate_on_runaway and runaway)
         if terminated:
             reward -= 50.0
+        # per-constraint violation amounts (PC-Gym-style tracking for safe-RL benchmarking)
+        cons_info = {"temp_high": max((T - T_HIGH for T in temps), default=0.0),
+                     "temp_trip": max((T - T_TRIP for T in temps), default=0.0),
+                     "level_high": max((levels[i] - H_HIGH_FRAC * hmax[i] for i in range(len(levels))), default=0.0),
+                     "level_low": max((H_LOW_FRAC * hmax[i] - levels[i] for i in range(len(levels))), default=0.0)}
         info = {"track": track, "constraint": con, "prod": prod, "profit": profit,
-                "runaway": runaway, "levels": levels, "temps": temps}
+                "runaway": runaway, "cons_info": cons_info, "cons_violated": any(v > 0 for v in cons_info.values()),
+                "levels": levels, "temps": temps}
         return float(reward), terminated, info
 
     def _economic_profit(self, act, levels, temps, runaway):

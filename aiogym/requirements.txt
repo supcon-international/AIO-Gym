@@ -11,3 +11,4 @@ gymnasium>=0.29
 # RLPD: official impl is JAX (https://github.com/ikostrikov/rlpd); in PyTorch it
 # is SAC + offline data in the replay buffer + critic LayerNorm + critic ensemble
 # + symmetric sampling. Cal-QL / IQL: see CORL (https://github.com/tinkoff-ai/CORL).
+casadi>=3.6
