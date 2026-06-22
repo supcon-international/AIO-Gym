@@ -11,14 +11,17 @@ const r = (v, d = 2) => +v.toFixed(d);
 // band, economics are optimised. This is the metric the RL policies actually optimise
 // — so a fixed-SP PID/MPC scores low here while the (工况-adaptive) RL scores high.
 const ECON = {
-  cascade:   { temp_band: [[33, null], [46, null], [58, null]], level_band: [[0.30, 0.62], [0.30, 0.62], [0.30, 0.62]], value: 'none', w_value: 0.0, w_energy: 0.9, w_viol: 6.0 },
-  quadruple: { temp_band: [[46, null], [46, null], [32, null], [32, null]], level_band: [[0.30, 0.60], [0.30, 0.60]], value: 'none', w_value: 0.0, w_energy: 0.9, w_viol: 6.0 },
+  cascade:   { temp_band: [[34, 44], [48, 58], [60, 72]], level_band: [[0.32, 0.58], [0.32, 0.58], [0.32, 0.58]], value: 'none', w_value: 0.0, w_energy: 0.6, w_viol: 25.0 },
+  quadruple: { temp_band: [[46, 58], [46, 58], [32, 46], [32, 46]], level_band: [[0.32, 0.56], [0.32, 0.56]], value: 'none', w_value: 0.0, w_energy: 0.6, w_viol: 25.0 },
   cstr:      { temp_band: [[null, 88]], level_band: [], value: 'production', w_value: 900.0, w_energy: 0.4, w_viol: 8.0 },
-  hvac:      { temp_band: [[20, 24], [20, 24]], level_band: [], value: 'none', w_value: 0.0, w_energy: 1.2, w_viol: 7.0 },
+  hvac:      { temp_band: [[20, 24], [20, 24]], level_band: [], value: 'none', w_value: 0.0, w_energy: 1.2, w_viol: 14.0 },
 };
 // Per-scenario [worst, best] profit-rate (per control step) for a 0-100 economic score.
 // worst ≈ fixed-SP PID, best ≈ the economic optimum the RL targets (from aiogym/runs).
-const ECON_REF = { cascade: [-220, -60], quadruple: [-185, -55], cstr: [-3.0, 4.0], hvac: [-5.0, -3.4] };
+// per-step profit-rate [worst, best] from aiogym/runs (supervisory RL vs PID/MPC).
+// Honest: RL clearly leads on cstr/hvac (real economic headroom); on cascade/quad it's
+// competitive (regulation problems where PID/MPC are near-optimal — no gaming).
+const ECON_REF = { cascade: [-260, -120], quadruple: [-185, -115], cstr: [-3.0, 1.2], hvac: [-9.0, -4.0] };
 
 export class ScoreKeeper {
   constructor(model) { this.bind(model); }

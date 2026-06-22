@@ -2,7 +2,7 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
-import { t } from '../i18n.js?v=7';
+import { t } from '../i18n.js?v=8';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);
@@ -107,23 +107,37 @@ const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.mi
 // One economic-objective RLPD policy per scenario. Each was trained on the economic
 // KPI (value − energy-cost in soft bands) under 工况 (operating-regime) variation, and
 // beats both fixed-SP PID and fixed-model MPC on economic performance (aiogym/runs).
+// Supervisory (RL-on-PID / RTO) action layout — MUST mirror aiogym/env.py SUPERVISORY.
+// The policy outputs SETPOINTS (normalized 0-1 -> [lo,hi]); an inner PID regulates the
+// plant to them, so the plant is always controlled and RL only picks the economic
+// optimum. ['t_sp',tank,lo,hi] | ['h_sp',level,lo,hi] | ['mv',kind,idx,lo,hi] (direct MV).
+export const SUPERVISORY = {
+  cascade:   [['t_sp', 0, 25, 80], ['t_sp', 1, 30, 82], ['t_sp', 2, 35, 85]],
+  quadruple: [['t_sp', 0, 25, 72], ['t_sp', 1, 25, 72], ['t_sp', 2, 20, 58], ['t_sp', 3, 20, 58]],
+  cstr:      [['t_sp', 0, 45, 90], ['mv', 'pumps', 0, 0.3, 1.0]],
+  hvac:      [['t_sp', 0, 18, 26], ['t_sp', 1, 18, 26]],
+};
+
+// One supervisory RLPD policy per scenario: RL sets the setpoints, the inner PID
+// regulates to them, and RL beats the fixed-SP PID / fixed-model MPC on economics by
+// adapting its targets to 工况 (operating regime). All trained in aiogym/runs.
 export const BUILTIN_POLICIES = [
-  { id: 'rlpd_cstr', scenario: 'cstr', url: './models/rlpd_cstr.onnx',
+  { id: 'rlpd_cstr', scenario: 'cstr', url: './models/rlpd_cstr.onnx', mode: 'setpoint',
     zh: 'RLPD · CSTR 经济', en: 'RLPD · CSTR economic',
-    noteZh: '产量最大化（贴安全边界）：经济得分远超 PID/MPC，唯一盈利',
-    noteEn: 'Production-max hugging the safe edge — beats PID/MPC, the only profitable one' },
-  { id: 'rlpd_cascade', scenario: 'cascade', url: './models/rlpd_cascade.onnx',
+    noteZh: 'RL 设温度/进料目标、PID 控住：贴安全边界最大化产量，唯一盈利、超 PID/MPC',
+    noteEn: 'RL sets temp/feed targets, PID holds them — production-max on the safe edge, the only profitable one' },
+  { id: 'rlpd_cascade', scenario: 'cascade', url: './models/rlpd_cascade.onnx', mode: 'setpoint',
     zh: 'RLPD · 多级水箱 节能', en: 'RLPD · Cascade economic',
-    noteZh: '软区间内最小能耗：运行成本比 MPC 低 ~60%、比 PID 低 ~65%',
-    noteEn: 'Min-energy within soft bands — ~60% lower cost than MPC, ~65% than PID' },
-  { id: 'rlpd_quadruple', scenario: 'quadruple', url: './models/rlpd_quadruple.onnx',
+    noteZh: 'RL 设各罐温度目标、PID 控住：达标前提下最省能，运行成本低于 PID/MPC',
+    noteEn: 'RL sets tank temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC' },
+  { id: 'rlpd_quadruple', scenario: 'quadruple', url: './models/rlpd_quadruple.onnx', mode: 'setpoint',
     zh: 'RLPD · 四水箱 节能', en: 'RLPD · Quadruple economic',
-    noteZh: '软区间内最小能耗：成本比 PID/MPC 低 ~65%',
-    noteEn: 'Min-energy within soft bands — ~65% lower cost than PID/MPC' },
-  { id: 'rlpd_hvac', scenario: 'hvac', url: './models/rlpd_hvac.onnx',
+    noteZh: 'RL 设温度目标、PID 控住：达标前提下最省能，成本低于 PID/MPC',
+    noteEn: 'RL sets temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC' },
+  { id: 'rlpd_hvac', scenario: 'hvac', url: './models/rlpd_hvac.onnx', mode: 'setpoint',
     zh: 'RLPD · HVAC 节能', en: 'RLPD · HVAC economic',
-    noteZh: '舒适区内贴外温侧最小能耗：成本比 PID/MPC 低 ~22%',
-    noteEn: 'Rides the outdoor-favorable comfort edge — ~22% lower cost than PID/MPC' },
+    noteZh: 'RL 设室温目标、PID 控住：舒适区内贴外温侧最省能，成本低于 PID/MPC',
+    noteEn: 'RL sets zone-temp targets, PID holds them — min-energy in comfort band, lower cost' },
 ];
 
 export class RLController {
@@ -137,21 +151,41 @@ export class RLController {
     this.ctrl = model.controlledLevels();
     this.obsLen = 3 * model.n + this.ctrl.length + 2;
     this.actLen = nP + nV + nH;
+    // supervisory (RL-on-PID): policy outputs setpoints, an inner PID regulates to them
+    this.scenario = model.metadata ? model.metadata().scenario : 'cascade';
+    this.layout = SUPERVISORY[this.scenario] || null;
+    this.pid = new PIDController(model);
+    this.mode = 'actuator';
     this.lastAction = { pumps: fill(nP, 0.3), valves: fill(nV, 0.5), heaters: zeros(nH) };
+    this._resetSp();
     this._busy = false;
   }
-  reset() {}
+  _resetSp() {
+    const [hsp, tsp] = this.model.defaultSetpoints();
+    this.tsp = tsp.slice();
+    this.hsp = Array.from({ length: this.model.n }, (_, i) => hsp[i] ?? 0);
+    this.mv = {};
+  }
+  reset() { if (this.pid) this.pid.reset(); this._resetSp(); }
+  getSetpoints() { return { t_sp: this.tsp.slice(), h_sp: this.hsp.slice() }; }
 
   obs(state, sp) { return Float32Array.from(obsVector(this.model, state, sp)); }
 
-  // Non-blocking: kick async inference, return the last cached action.
-  compute(state, sp) {
+  // Non-blocking: kick async inference, return an actuator command. Supervisory mode
+  // runs the inner PID to RL's (async-updated) setpoints every tick; actuator mode
+  // returns the last cached raw action.
+  compute(state, sp, dt) {
+    const setpoint = this.mode === 'setpoint' && this.layout;
     if (this.session && !this._busy) {
       this._busy = true;
-      const x = this.obs(state, sp);
-      this._infer(x).finally(() => { this._busy = false; });
+      const x = setpoint ? Float32Array.from(obsVector(this.model, state, { t_sp: this.tsp, h_sp: this.hsp }))
+                         : this.obs(state, sp);
+      (setpoint ? this._inferSp(x) : this._infer(x)).finally(() => { this._busy = false; });
     }
-    return copyAct(this.lastAction);
+    if (!setpoint) return copyAct(this.lastAction);
+    const act = this.pid.compute(state, { t_sp: this.tsp, h_sp: this.hsp }, dt);   // PID holds RL's targets
+    for (const key in this.mv) { const [kind, idx] = key.split(':'); act[kind][+idx] = this.mv[key]; }
+    return act;
   }
 
   async _infer(x) {
@@ -170,19 +204,42 @@ export class RLController {
     } catch (e) { this._st = { k: 'err', msg: e.message }; this.ready = false; }
   }
 
-  async loadPolicy(src) {
+  // Supervisory inference: ONNX outputs normalized setpoints -> denormalize -> the SPs
+  // the inner PID tracks (+ any direct economic MVs).
+  async _inferSp(x) {
+    try {
+      const ort = window.ort;
+      const input = new ort.Tensor('float32', x, [1, x.length]);
+      const feeds = {}; feeds[this.session.inputNames[0]] = input;
+      const out = await this.session.run(feeds);
+      const a = out[this.session.outputNames[0]].data;
+      const mv = {};
+      this.layout.forEach((spec, i) => {
+        const lo = spec[spec.length - 2], hi = spec[spec.length - 1];
+        const val = lo + clamp01(a[i]) * (hi - lo);
+        if (spec[0] === 't_sp') this.tsp[spec[1]] = val;
+        else if (spec[0] === 'h_sp') this.hsp[spec[1]] = val;
+        else mv[spec[1] + ':' + spec[2]] = val;            // ['mv', kind, idx, lo, hi]
+      });
+      this.mv = mv;
+    } catch (e) { this._st = { k: 'err', msg: e.message }; this.ready = false; }
+  }
+
+  async loadPolicy(src, mode) {
     this._st = { k: 'loading' };
+    this.mode = mode || 'actuator';
+    const expectOut = (this.mode === 'setpoint' && this.layout) ? this.layout.length : this.actLen;
     try {
       if (!window.ort) await loadScript(ORT_CDN);
       const ort = window.ort;
       const session = await ort.InferenceSession.create(src);
-      // Validate the policy's obs/act dims against the current scenario up front,
-      // so a mismatched policy fails loudly once at load — not silently every tick.
+      // Validate obs/output dims against the scenario up front, so a mismatched policy
+      // fails loudly once at load — not silently every tick.
       const probe = new ort.Tensor('float32', new Float32Array(this.obsLen), [1, this.obsLen]);
       const feeds = {}; feeds[session.inputNames[0]] = probe;
       const out = await session.run(feeds);
       const aLen = out[session.outputNames[0]].data.length;
-      if (aLen !== this.actLen) throw new Error(`__DIM__act ${aLen} ${this.actLen}`);
+      if (aLen !== expectOut) throw new Error(`__DIM__act ${aLen} ${expectOut}`);
       this.session = session; this.ready = true;
       this._st = { k: 'loaded' };
       return true;
@@ -200,9 +257,13 @@ export class RLController {
   }
   // Localize the status at read-time so a language toggle updates it immediately.
   getStatus() {
+    const sup = this.mode === 'setpoint' && this.layout;
+    const outN = sup ? this.layout.length : this.actLen;
+    const loaded = sup ? t(`策略已加载 · RL→设定点(${outN})→PID`, `Loaded · RL→setpoints(${outN})→PID`)
+                       : t(`策略已加载 (obs=${this.obsLen}, act=${this.actLen})`, `Policy loaded (obs=${this.obsLen}, act=${this.actLen})`);
     const s = this._st, st =
       s.k === 'loading' ? t('加载中…', 'Loading…')
-      : s.k === 'loaded' ? t(`策略已加载 (obs=${this.obsLen}, act=${this.actLen})`, `Policy loaded (obs=${this.obsLen}, act=${this.actLen})`)
+      : s.k === 'loaded' ? loaded
       : s.k === 'err' ? t('ONNX 推理出错', 'ONNX inference error') + ': ' + s.msg
       : s.k === 'fail' ? t('加载失败', 'Load failed') + ': ' + s.msg
       : t('未加载策略', 'No policy loaded');

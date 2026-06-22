@@ -29,15 +29,23 @@ from aiogym.rlpd import RLPD
 
 
 def collect_offline(env, agent, episodes, seed=1000):
+    """Prior data. Supervisory (RL-on-PID) env: roll the default-SP action (= fixed-SP
+    PID) + exploration noise. Actuator env: roll the PID controller directly."""
+    supervisory = getattr(env, "layout", None) is not None
+    a0 = env.default_sp_action() if supervisory else None
     data = []
     for ep in range(episodes):
         obs, _ = env.reset(seed=seed + ep)
-        agent.reset()
+        if agent is not None:
+            agent.reset()
         done = False
         while not done:
-            sp = {"h_sp": env.h_sp, "t_sp": env.t_sp}     # track current (disturbed) setpoints
-            act = agent.compute(make_meas(env), sp, env.control_dt)
-            a = np.array(list(act["pumps"]) + list(act["valves"]) + list(act["heaters"]), np.float32)
+            if supervisory:
+                a = np.clip(a0 + np.random.normal(0, 0.15, a0.shape), 0, 1).astype(np.float32)
+            else:
+                sp = {"h_sp": env.h_sp, "t_sp": env.t_sp}
+                act = agent.compute(make_meas(env), sp, env.control_dt)
+                a = np.array(list(act["pumps"]) + list(act["valves"]) + list(act["heaters"]), np.float32)
             o2, r, term, trunc, info = env.step(a)
             data.append((obs, a, r, o2, float(term)))
             obs = o2
@@ -71,6 +79,7 @@ def main():
     ap.add_argument("--offline-episodes", type=int, default=40)
     ap.add_argument("--randomize-plant", action="store_true", default=True)
     ap.add_argument("--no-randomize-plant", dest="randomize_plant", action="store_false")
+    ap.add_argument("--action-mode", default="actuator", choices=["actuator", "setpoint"])
     ap.add_argument("--bc-steps", type=int, default=4000)
     ap.add_argument("--pretrain-updates", type=int, default=5000)
     ap.add_argument("--online-steps", type=int, default=30000)
@@ -84,12 +93,13 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    def mkenv():
-        # integral_obs OFF keeps obs = base contract (browser-compatible, no obs change).
-        # randomize_setpoints OFF for economic: the soft bands (not SPs) define the goal.
+    def mkenv(mode=None):
+        # RL uses the requested action_mode (setpoint = supervisory RL-on-PID); baselines
+        # run on an actuator-mode env (they ARE fixed-SP controllers). integral_obs OFF
+        # and randomize_setpoints OFF (RL/economic owns the SPs) keep obs = base contract.
         return AIOGymNativeEnv(args.scenario, reward_mode=args.reward_mode, control_dt=args.control_dt,
                                episode_steps=args.episode_steps, dynamic=True, randomize=True,
-                               randomize_setpoints=(args.reward_mode != "economic"),
+                               randomize_setpoints=False, action_mode=mode or args.action_mode,
                                randomize_plant=args.randomize_plant, plant_drift=args.randomize_plant,
                                integral_obs=False, terminate_on_runaway=False)
 
@@ -97,11 +107,11 @@ def main():
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
-    # baselines (the bar to beat) — FIXED nominal tuning/model so they degrade under 工况
-    # variation (the gap RL's adaptation must beat). Ranked by KPI score.
+    # baselines (the bar to beat) — FIXED-SP PID / fixed-model MPC on an actuator env,
+    # the static operating point the supervisory RL must beat by adapting its setpoints.
     metric = "profit" if args.reward_mode == "economic" else "kpi"
-    pid = evaluate(PIDAgent(make_model(args.scenario)), mkenv(), episodes=16)
-    mpc = evaluate(MPCAgent(make_model(args.scenario)), mkenv(), episodes=16)
+    pid = evaluate(PIDAgent(make_model(args.scenario)), mkenv("actuator"), episodes=16)
+    mpc = evaluate(MPCAgent(make_model(args.scenario)), mkenv("actuator"), episodes=16)
     print(f"[baseline] PID {metric}={pid[metric]:.1f}   MPC {metric}={mpc[metric]:.1f}")
 
     # 1) offline historian from PID (fixed nominal PID is a fine prior)

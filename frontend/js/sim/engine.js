@@ -2,14 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=7';
-import { Integrator } from './kernel.js?v=7';
-import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=7';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=7';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=7';
-import { ScoreKeeper } from './scoring.js?v=7';
-import { Realism } from './realism.js?v=7';
-import { MPCController } from './mpc.js?v=7';
+import { makeModel } from './models.js?v=8';
+import { Integrator } from './kernel.js?v=8';
+import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=8';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=8';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=8';
+import { ScoreKeeper } from './scoring.js?v=8';
+import { Realism } from './realism.js?v=8';
+import { MPCController } from './mpc.js?v=8';
 
 const TICK = 0.05;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -91,7 +91,7 @@ export class Engine {
   // switch, so this reloads the matching one. User file/URL/dropdown still override.
   _autoloadRL() {
     const def = BUILTIN_POLICIES.find((p) => p.scenario === this.scenario);
-    if (def && !this.rl.session && this.rl._st.k !== 'loading') this.rl.loadPolicy(def.url);
+    if (def && !this.rl.session && this.rl._st.k !== 'loading') this.rl.loadPolicy(def.url, def.mode);
   }
 
   _autoTick(dt) {
@@ -117,6 +117,8 @@ export class Engine {
     const meas = this.realism.measure(this.disturb.applySensorFaults(this.state), dt);
     this.meas = meas;
     const raw = ctrl.compute(meas, sp, dt);
+    // supervisory RL owns the setpoints — reflect its chosen targets in the UI/charts
+    if (this.mode === 'rl' && this.rl.mode === 'setpoint' && this.rl.session) this.setpoints = this.rl.getSetpoints();
     [this.alarms, this.mask] = this.alarmsMon.evaluate(this.state);   // interlocks act on the true state
     // actuation chain: command -> injected actuator faults -> actuator realism (stiction/slew) -> protective trips
     let eff = this.realism.actuate(this.disturb.applyActuatorFaults(raw), dt);
@@ -187,7 +189,7 @@ export class Engine {
         break;
       case 'set_pid': this.pid.setConfig(msg); break;
       case 'set_model_config': this.model.setConfig(msg.config || {}); break;
-      case 'set_rl_policy': this.rl.loadPolicy(msg.src); break;
+      case 'set_rl_policy': this.rl.loadPolicy(msg.src, msg.mode); break;
       case 'set_action': this.ext.setAction(msg.action); if (this.mode !== 'ext') this.setMode('ext'); break;
       case 'set_disturbance': this.disturb.set(msg.dtype, msg.params); break;
       case 'clear_disturbance': this.disturb.clear(msg.dtype); break;

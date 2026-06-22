@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=7';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=7';
+import { t } from './i18n.js?v=8';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=8';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -242,7 +242,7 @@ export function buildControls(bus, meta, catalog) {
       const p = BUILTIN_POLICIES.find((x) => x.id === e.target.value);
       if (!p) return;
       if (p.scenario !== scn) bus.send({ type: 'set_scenario', scenario: p.scenario });
-      bus.send({ type: 'set_rl_policy', src: p.url });
+      bus.send({ type: 'set_rl_policy', src: p.url, mode: p.mode });
     } });
     sel.append(h('option', { value: '' }, t('内置策略…', 'Built-in policy…')));
     for (const p of BUILTIN_POLICIES) {

@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 run() {
   local scn=$1 steps=$2 online=$3
   OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 python3 -u aiogym/train_rlpd.py \
-    --scenario "$scn" --reward-mode economic --episode-steps "$steps" \
+    --scenario "$scn" --reward-mode economic --action-mode setpoint --episode-steps "$steps" \
     --offline-episodes 30 --bc-steps 0 --pretrain-updates 4000 --online-steps "$online" \
     --eval-every 2500 --out "aiogym/runs/rlpd_${scn}_econ" > "/tmp/${scn}_econ.log" 2>&1
 }

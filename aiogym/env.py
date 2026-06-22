@@ -55,14 +55,33 @@ PLANT_REGIME = {
 #   value     : "production" (CSTR: hug the drifting safe-temp edge) | "none" (min-energy)
 #   w_*       : reward weights (value reward, energy cost /kW, band violation, runaway)
 ECON = {
-    "cascade":   {"temp_band": [(33, None), (46, None), (58, None)], "level_band": [(0.30, 0.62)] * 3,
-                  "value": "none", "w_value": 0.0, "w_energy": 0.9, "w_viol": 6.0},
-    "quadruple": {"temp_band": [(46, None), (46, None), (32, None), (32, None)], "level_band": [(0.30, 0.60)] * 2,
-                  "value": "none", "w_value": 0.0, "w_energy": 0.9, "w_viol": 6.0},
+    # Heating scenarios: temps MUST stay in an on-spec window (strong w_viol so the
+    # plant is actually controlled — not left cold); within the window minimise energy
+    # -> RL hugs the efficient lower edge while PID holds the higher SP. 工况 (feed-temp
+    # / efficiency drift) moves the energy-optimal action so fixed tuning is suboptimal.
+    "cascade":   {"temp_band": [(34, 44), (48, 58), (60, 72)], "level_band": [(0.32, 0.58)] * 3,
+                  "value": "none", "w_value": 0.0, "w_energy": 0.6, "w_viol": 25.0},
+    "quadruple": {"temp_band": [(46, 58), (46, 58), (32, 46), (32, 46)], "level_band": [(0.32, 0.56)] * 2,
+                  "value": "none", "w_value": 0.0, "w_energy": 0.6, "w_viol": 25.0},
+    # CSTR: maximise production hugging the drifting safe-temp edge (value-driven).
     "cstr":      {"temp_band": [(None, 88.0)], "level_band": [],
                   "value": "production", "w_value": 900.0, "w_energy": 0.4, "w_viol": 8.0},
+    # HVAC: hold the comfort band, ride the outdoor-favorable edge to save energy.
     "hvac":      {"temp_band": [(20.0, 24.0), (20.0, 24.0)], "level_band": [],
-                  "value": "none", "w_value": 0.0, "w_energy": 1.2, "w_viol": 7.0},
+                  "value": "none", "w_value": 0.0, "w_energy": 1.2, "w_viol": 14.0},
+}
+
+# Supervisory (RL-on-PID / RTO) action layout: RL outputs SETPOINTS that the inner
+# PID tracks (the plant is always regulated -> always controlled, RL >= PID by
+# construction; RL only picks the economically-best targets, adapting to 工况). Each
+# entry: ("t_sp", tank, lo, hi) | ("h_sp", level, lo, hi) | ("mv", kind, idx, lo, hi)
+# ("mv" = an unregulated economic MV set directly, e.g. CSTR feed rate). Levels not
+# listed stay at the default SP (PID holds them).
+SUPERVISORY = {
+    "cascade":   [("t_sp", 0, 25, 80), ("t_sp", 1, 30, 82), ("t_sp", 2, 35, 85)],
+    "quadruple": [("t_sp", 0, 25, 72), ("t_sp", 1, 25, 72), ("t_sp", 2, 20, 58), ("t_sp", 3, 20, 58)],
+    "cstr":      [("t_sp", 0, 45, 90), ("mv", "pumps", 0, 0.3, 1.0)],
+    "hvac":      [("t_sp", 0, 18, 26), ("t_sp", 1, 18, 26)],
 }
 
 
@@ -71,7 +90,7 @@ class AIOGymNativeEnv(gym.Env):
 
     def __init__(self, scenario="cascade", control_dt=0.5, episode_steps=600,
                  reward_mode="kpi", dynamic=True, randomize=True, randomize_setpoints=True,
-                 randomize_plant=False, plant_drift=False, integral_obs=False,
+                 randomize_plant=False, plant_drift=False, integral_obs=False, action_mode="actuator",
                  terminate_on_runaway=False, reward_scale=0.03, w_prod=1000.0, w_energy=2.0, w_constraint=8.0):
         super().__init__()
         self.scenario = scenario
@@ -110,7 +129,17 @@ class AIOGymNativeEnv(gym.Env):
         obs_dim = 3 * self.model.n + self.nctrl + 2
         if integral_obs:
             obs_dim += self.model.n + self.nctrl       # ∫temp-err (all) + ∫level-err (controlled)
-        self.action_space = spaces.Box(0.0, 1.0, (self.nu,), dtype=np.float32)
+        # supervisory (RL-on-PID): action = setpoints, an inner PID does the regulation.
+        self.action_mode = action_mode
+        self.layout = SUPERVISORY.get(scenario, []) if action_mode == "setpoint" else None
+        if self.layout is not None:
+            from .baselines import PIDAgent
+            self.pid = PIDAgent(self.model)
+            act_dim = len(self.layout)
+        else:
+            self.pid = None
+            act_dim = self.nu
+        self.action_space = spaces.Box(0.0, 1.0, (act_dim,), dtype=np.float32)
         self.observation_space = spaces.Box(-np.inf, np.inf, (obs_dim,), dtype=np.float32)
         self._k = 0
 
@@ -279,14 +308,60 @@ class AIOGymNativeEnv(gym.Env):
             self.t_sp = [float(np.clip(t * (1 + 0.10 * rng.uniform(-1, 1)), 15.0, 85.0)) for t in self.t_sp]
         self.integ.reset(x0)
         self.scorer.reset()
+        if self.pid is not None:
+            self.pid.reset()
         self._itemp = [0.0] * self.model.n
         self._ilevel = [0.0] * self.nctrl
         self._k = 0
         self._schedule_disturbances()
         return self._obs(), {}
 
+    def default_sp_action(self):
+        """Normalized supervisory action that reproduces the default setpoints (= the
+        fixed-SP PID baseline) — the offline prior to learn from."""
+        if self.layout is None:
+            return None
+        a = []
+        for spec in self.layout:
+            lo, hi = spec[-2], spec[-1]
+            if spec[0] == "t_sp":
+                v = self._tsp0[spec[1]]
+            elif spec[0] == "h_sp":
+                v = self._hsp0[spec[1]] or 0.45
+            else:
+                v = lo + 0.7 * (hi - lo)
+            a.append(float(np.clip((v - lo) / (hi - lo), 0.0, 1.0)))
+        return np.array(a, np.float32)
+
+    def _meas(self):
+        """buildState-like dict the inner PID reads (true state)."""
+        lv, tp = self.model.levels_temps(self.integ.x)
+        m = {"levels": lv, "temps": tp, "t_cold": self.t_cold, "t_amb": self.t_amb}
+        if hasattr(self.model, "conc"):
+            m["conc"] = self.model.conc(self.integ.x)
+        return m
+
+    def _supervise(self, action):
+        """Supervisory action = normalized setpoints -> set SPs, inner PID regulates
+        to them; unregulated economic MVs ('mv') are applied directly."""
+        a = np.clip(np.asarray(action, np.float64), 0.0, 1.0)
+        mv = {}
+        for i, spec in enumerate(self.layout):
+            lo, hi = spec[-2], spec[-1]
+            val = lo + float(a[i]) * (hi - lo)
+            if spec[0] == "t_sp":
+                self.t_sp[spec[1]] = val
+            elif spec[0] == "h_sp":
+                self.h_sp[spec[1]] = val
+            else:                                   # ("mv", kind, idx, lo, hi)
+                mv[(spec[1], spec[2])] = val
+        act = self.pid.compute(self._meas(), {"h_sp": self.h_sp, "t_sp": self.t_sp}, self.control_dt)
+        for (kind, idx), v in mv.items():
+            act[kind][idx] = v
+        return {"pumps": list(act["pumps"]), "valves": list(act["valves"]), "heaters": list(act["heaters"])}
+
     def step(self, action):
-        act = self._split(action)
+        act = self._supervise(action) if self.pid is not None else self._split(action)
         for (t, kind) in self._dist_events:
             if t == self._k:
                 self._apply_disturbance(kind)
