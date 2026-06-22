@@ -2,7 +2,7 @@
 // cascade, or the Johansson quadruple-tank (2 lower + 2 upper, crossed pump
 // feeds). Both bind tank water height/colour, heater glow, pump and pipe-flow
 // animation to live telemetry.
-import { t as L } from './i18n.js?v=6';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=7';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {

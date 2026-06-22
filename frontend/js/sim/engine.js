@@ -2,14 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=6';
-import { Integrator } from './kernel.js?v=6';
-import { ManualController, PIDController, RLController, ExternalController, obsVector } from './controllers.js?v=6';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=6';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=6';
-import { ScoreKeeper } from './scoring.js?v=6';
-import { Realism } from './realism.js?v=6';
-import { MPCController } from './mpc.js?v=6';
+import { makeModel } from './models.js?v=7';
+import { Integrator } from './kernel.js?v=7';
+import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=7';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=7';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=7';
+import { ScoreKeeper } from './scoring.js?v=7';
+import { Realism } from './realism.js?v=7';
+import { MPCController } from './mpc.js?v=7';
 
 const TICK = 0.05;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -75,6 +75,7 @@ export class Engine {
     this.manual.bind(this.model); this.pid.bind(this.model); this.mpc.bind(this.model); this.rl.bind(this.model); this.ext.bind(this.model);
     this.alarmsMon.bind(this.model); this.score.bind(this.model); this.disturb.bind(this.model); this.realism.bind(this.model);
     this.disturb.clearAll(); this._initSetpoints(); this.reset();
+    if (this.mode === 'rl') this._autoloadRL();          // load the new scenario's policy
   }
 
   setMode(mode) {
@@ -82,6 +83,15 @@ export class Engine {
     if (mode === 'manual') this.manual.setCommand(this.lastAct.pumps, this.lastAct.valves, this.lastAct.heaters);
     else this.controllers[mode].reset();
     this.mode = mode;
+    if (mode === 'rl') this._autoloadRL();
+  }
+
+  // Auto-load the current scenario's built-in RL policy so RL mode "just works"
+  // like PID/MPC — no dropdown step. rl.bind() drops the old policy on a scenario
+  // switch, so this reloads the matching one. User file/URL/dropdown still override.
+  _autoloadRL() {
+    const def = BUILTIN_POLICIES.find((p) => p.scenario === this.scenario);
+    if (def && !this.rl.session && this.rl._st.k !== 'loading') this.rl.loadPolicy(def.url);
   }
 
   _autoTick(dt) {
@@ -116,7 +126,7 @@ export class Engine {
     const env = this.disturb.environment();
     this.state = this.integ.step(dt, eff, env);
     this.simT = this.state.t; this.lastAct = eff;
-    this.score.update(this.state, sp, this.mask, this.alarms.length, dt);
+    this.score.update(this.state, sp, this.mask, this.alarms.length, dt, eff);
   }
 
   telemetry() {

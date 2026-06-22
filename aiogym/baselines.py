@@ -200,20 +200,23 @@ def make_meas(env):
 
 
 def evaluate(agent, env, episodes=20, seed=0):
-    """Run a controller (PID/MPC) on the native env; return mean episode return + info."""
-    returns, tracks, cons = [], [], []
+    """Run a controller (PID/MPC) on the native env; rank by KPI score (the gym's
+    own composite — the same yardstick the browser shows), plus mean return."""
+    returns, scores, profits, tracks, cons = [], [], [], [], []
     for ep in range(episodes):
         obs, _ = env.reset(seed=seed + ep)
         agent.reset()
-        sp = {"h_sp": env.h_sp, "t_sp": env.t_sp}
-        R = tr = co = 0.0
+        R = tr = co = pf = 0.0
         done = False
         while not done:
+            sp = {"h_sp": env.h_sp, "t_sp": env.t_sp}    # current (possibly disturbed) setpoints
             act = agent.compute(make_meas(env), sp, env.control_dt)
             a = np.array(list(act["pumps"]) + list(act["valves"]) + list(act["heaters"]), dtype=np.float32)
             obs, r, term, trunc, info = env.step(a)
-            R += r; tr += info["track"]; co += info["constraint"]
+            R += r; tr += info["track"]; co += info["constraint"]; pf += info.get("profit", 0.0)
             done = term or trunc
-        returns.append(R); tracks.append(tr); cons.append(co)
-    return {"name": agent.name, "return": float(np.mean(returns)), "return_std": float(np.std(returns)),
-            "track": float(np.mean(tracks)), "constraint": float(np.mean(cons))}
+        rep = env.scorer.report()
+        returns.append(R); scores.append(rep["score"]); profits.append(pf); tracks.append(tr); cons.append(co)
+    return {"name": agent.name, "kpi": float(np.mean(scores)), "kpi_std": float(np.std(scores)),
+            "profit": float(np.mean(profits)), "profit_std": float(np.std(profits)),
+            "return": float(np.mean(returns)), "track": float(np.mean(tracks)), "constraint": float(np.mean(cons))}

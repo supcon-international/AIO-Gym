@@ -96,7 +96,8 @@ class ReplayBuffer:
 
 class RLPD:
     def __init__(self, obs_dim, act_dim, hidden=256, n_critics=5, subset=2, utd=5,
-                 gamma=0.99, tau=0.005, lr=3e-4, batch=256, device="cpu"):
+                 gamma=0.99, tau=0.005, lr=3e-4, batch=256, device="cpu",
+                 entropy_scale=1.0, init_alpha=0.1):
         self.device = torch.device(device)
         self.obs_dim, self.act_dim = obs_dim, act_dim
         self.gamma, self.tau, self.batch = gamma, tau, batch
@@ -109,9 +110,11 @@ class RLPD:
 
         self.a_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
         self.c_opt = torch.optim.Adam(self.critics.parameters(), lr=lr)
-        self.log_alpha = torch.tensor(np.log(0.1), device=self.device, requires_grad=True)
+        self.log_alpha = torch.tensor(np.log(init_alpha), device=self.device, requires_grad=True)
         self.al_opt = torch.optim.Adam([self.log_alpha], lr=lr)
-        self.target_entropy = -float(act_dim)
+        # gentler entropy target than -act_dim: forcing high stochasticity blows up a
+        # BC-warm-started policy on online start (offline->online dip). 0.5*act_dim holds it.
+        self.target_entropy = -entropy_scale * float(act_dim)
 
         self.online = ReplayBuffer(obs_dim, act_dim, 1_000_000)
         self.offline = None
@@ -133,6 +136,24 @@ class RLPD:
                     np.asarray(o2, np.float32), float(d))
         self.offline = buf
 
+    def bc_warmstart(self, steps=4000, batch=256):
+        """Behaviour-clone the actor toward the offline (PID) actions so online RL
+        starts from a competent policy instead of a random one (offline->online
+        init). RLPD adds no BC term during online RL; this only seeds the actor —
+        the critic still learns Q from the prior data in pretrain. The actor's
+        deterministic output tanh(mu) targets the stored SAC-space action."""
+        if self.offline is None or self.offline.size == 0:
+            return
+        for _ in range(steps):
+            idx = np.random.randint(0, self.offline.size, batch)
+            o = torch.as_tensor(self.offline.o[idx], device=self.device)
+            a_tgt = torch.as_tensor(self.offline.a[idx], device=self.device)   # SAC space [-1,1]
+            mu, _ = self.actor(o)
+            loss = F.mse_loss(torch.tanh(mu), a_tgt)
+            self.a_opt.zero_grad(set_to_none=True)
+            loss.backward()
+            self.a_opt.step()
+
     def push(self, o, a01, r, o2, d):
         self.online.add(np.asarray(o, np.float32), self.to_sac(np.asarray(a01, np.float32)), r,
                         np.asarray(o2, np.float32), float(d))
@@ -153,7 +174,11 @@ class RLPD:
         src = self.online if (self.offline is None or self.online.size > 0) else self.offline
         return src.sample(self.batch, self.device)
 
-    def update(self):
+    def update(self, actor=True):
+        """One RLPD step (utd critic updates + 1 actor/alpha + Polyak). actor=False
+        does critic-only — used to align Q with the BC-warm-started policy during
+        pretrain BEFORE letting the actor move (an undertrained critic would
+        otherwise destroy the warm-started actor)."""
         alpha = self.log_alpha.exp().detach()
         for _ in range(self.utd):
             o, a, r, o2, d = self._sample()
@@ -167,24 +192,31 @@ class RLPD:
             q_loss.backward()
             self.c_opt.step()
 
-        # actor + temperature (once per env step, on a fresh batch)
-        o = self._sample()[0]
-        ap, logp = self.actor.sample(o)
-        q_pi = torch.stack([c(o, ap) for c in self.critics], 0).mean(0)
-        a_loss = (alpha * logp - q_pi).mean()
-        self.a_opt.zero_grad(set_to_none=True)
-        a_loss.backward()
-        self.a_opt.step()
+        a_loss = 0.0
+        if actor:
+            # actor + temperature (once per env step, on a fresh batch)
+            o = self._sample()[0]
+            ap, logp = self.actor.sample(o)
+            # pessimistic actor: maximize the min over a random critic subset (not the
+            # mean) so it can't exploit OOD value overestimation — the failure mode that
+            # collapses a BC-warm-started policy when online RL starts.
+            pick = np.random.choice(self.n_critics, self.subset, replace=False)
+            q_pi = torch.stack([self.critics[i](o, ap) for i in pick], 0).min(0).values
+            a_loss = (alpha * logp - q_pi).mean()
+            self.a_opt.zero_grad(set_to_none=True)
+            a_loss.backward()
+            self.a_opt.step()
 
-        al_loss = -(self.log_alpha.exp() * (logp.detach() + self.target_entropy)).mean()
-        self.al_opt.zero_grad(set_to_none=True)
-        al_loss.backward()
-        self.al_opt.step()
+            al_loss = -(self.log_alpha.exp() * (logp.detach() + self.target_entropy)).mean()
+            self.al_opt.zero_grad(set_to_none=True)
+            al_loss.backward()
+            self.al_opt.step()
+            a_loss = float(a_loss.detach())
 
         with torch.no_grad():
             for c, tc in zip(self.critics.parameters(), self.targets.parameters()):
                 tc.mul_(1 - self.tau).add_(self.tau * c)
-        return {"q_loss": float(q_loss.detach()), "a_loss": float(a_loss.detach()), "alpha": float(alpha)}
+        return {"q_loss": float(q_loss.detach()), "a_loss": a_loss, "alpha": float(alpha)}
 
     # ---- persistence ----
     def save_onnx(self, path):

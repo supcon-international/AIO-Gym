@@ -83,6 +83,24 @@ class CascadeModel:
     def default_setpoints(self):
         return {0: 0.45, 1: 0.45, 2: 0.45}, [35.0, 50.0, 65.0]
 
+    # ---- KPI support (mirrors models.js idealPower + heater/pump power) ----
+    energy_scored = True
+
+    def heater_power(self, act):
+        return sum(u * self.p["heater_max"] for u in act["heaters"])
+
+    def pump_power(self, act):
+        return sum(u * self.p["pump_power_max"] for u in act["pumps"])
+
+    def ideal_power(self, levels, temps, t_sp, env, act):
+        p = self.p
+        q = act["pumps"][0] * p["pump_flow_max"]
+        tot = 0.0
+        for i in range(3):
+            tin = env["t_cold"] if i == 0 else t_sp[i - 1]
+            tot += _maxv(0.0, RHO_CP * q * (t_sp[i] - tin) + p["ua_loss"] * (t_sp[i] - env["t_amb"]))
+        return tot
+
 
 class QuadrupleModel:
     scenario = "quadruple"
@@ -151,6 +169,33 @@ class QuadrupleModel:
     def default_setpoints(self):
         return {0: 0.40, 1: 0.40}, [50.0, 50.0, 35.0, 35.0]
 
+    # ---- KPI support ----
+    energy_scored = True
+
+    def heater_power(self, act):
+        return sum(u * self.p["heater_max"][i] for i, u in enumerate(act["heaters"]))
+
+    def pump_power(self, act):
+        return sum(u * self.p["pump_power_max"] for u in act["pumps"])
+
+    def ideal_power(self, levels, temps, t_sp, env, act):
+        p = self.p
+        g1, g2, tc = self.gamma1, self.gamma2, env["t_cold"]
+        Q1 = act["pumps"][0] * p["pump_flow_max"]
+        Q2 = act["pumps"][1] * p["pump_flow_max"]
+        out = self._out(levels)
+        inflow = [
+            [(g1 * Q1, tc), (out[2], t_sp[2])],
+            [(g2 * Q2, tc), (out[3], t_sp[3])],
+            [((1 - g2) * Q2, tc)],
+            [((1 - g1) * Q1, tc)],
+        ]
+        tot = 0.0
+        for i in range(4):
+            mix = sum(q * (t_sp[i] - tin) for q, tin in inflow[i])
+            tot += _maxv(0.0, RHO_CP * mix + p["ua_loss"] * (t_sp[i] - env["t_amb"]))
+        return tot
+
 
 class CSTRModel:
     scenario = "cstr"
@@ -205,6 +250,24 @@ class CSTRModel:
     def default_setpoints(self):
         return {}, [60.0]
 
+    # ---- KPI support (CSTR scores tracking + safety; no excess-energy term) ----
+    energy_scored = False
+
+    def heater_power(self, act):
+        return act["heaters"][0] * self.p["cool_max"]
+
+    def pump_power(self, act):
+        return act["pumps"][0] * self.p["feed_power_max"]
+
+    def ideal_power(self, levels, temps, t_sp, env, act):
+        return 0.0
+
+    def production(self, x, act):
+        """Reactant consumed per unit time (mol/s) — the CSTR efficiency signal."""
+        Ca = _maxv(x[0], 0.0)
+        D = act["pumps"][0] * self.p["Dmax"]
+        return D * (self.p["Caf"] - Ca)
+
 
 class HVACModel:
     scenario = "hvac"
@@ -248,6 +311,18 @@ class HVACModel:
 
     def default_setpoints(self):
         return {}, [22.0, 22.0]
+
+    # ---- KPI support (HVAC scores tracking + safety; no excess-energy term) ----
+    energy_scored = False
+
+    def heater_power(self, act):
+        return sum(abs(self._power(u)) for u in act["heaters"])
+
+    def pump_power(self, act):
+        return 0.0
+
+    def ideal_power(self, levels, temps, t_sp, env, act):
+        return 0.0
 
 
 MODELS = {"cascade": CascadeModel, "quadruple": QuadrupleModel, "cstr": CSTRModel, "hvac": HVACModel}

@@ -2,7 +2,7 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
-import { t } from '../i18n.js?v=6';
+import { t } from '../i18n.js?v=7';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);
@@ -104,13 +104,26 @@ const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.mi
 // Policies bundled under frontend/models/. Each is scenario-specific (the obs/act
 // contract differs per plant), so selecting one switches the sim to its scenario
 // before loading. Drop a new .onnx in frontend/models/ and add a row here.
+// One economic-objective RLPD policy per scenario. Each was trained on the economic
+// KPI (value − energy-cost in soft bands) under 工况 (operating-regime) variation, and
+// beats both fixed-SP PID and fixed-model MPC on economic performance (aiogym/runs).
 export const BUILTIN_POLICIES = [
-  {
-    id: 'rlpd_cstr_econ', scenario: 'cstr', url: './models/rlpd_cstr_econ.onnx',
-    zh: 'RLPD · CSTR 经济最优', en: 'RLPD · CSTR economic',
-    noteZh: '产量最大化，回报 5011 > MPC 4220 > PID 2396（强过两者）',
-    noteEn: 'Production-max; return 5011 > MPC 4220 > PID 2396 (beats both)',
-  },
+  { id: 'rlpd_cstr', scenario: 'cstr', url: './models/rlpd_cstr.onnx',
+    zh: 'RLPD · CSTR 经济', en: 'RLPD · CSTR economic',
+    noteZh: '产量最大化（贴安全边界）：经济得分远超 PID/MPC，唯一盈利',
+    noteEn: 'Production-max hugging the safe edge — beats PID/MPC, the only profitable one' },
+  { id: 'rlpd_cascade', scenario: 'cascade', url: './models/rlpd_cascade.onnx',
+    zh: 'RLPD · 多级水箱 节能', en: 'RLPD · Cascade economic',
+    noteZh: '软区间内最小能耗：运行成本比 MPC 低 ~60%、比 PID 低 ~65%',
+    noteEn: 'Min-energy within soft bands — ~60% lower cost than MPC, ~65% than PID' },
+  { id: 'rlpd_quadruple', scenario: 'quadruple', url: './models/rlpd_quadruple.onnx',
+    zh: 'RLPD · 四水箱 节能', en: 'RLPD · Quadruple economic',
+    noteZh: '软区间内最小能耗：成本比 PID/MPC 低 ~65%',
+    noteEn: 'Min-energy within soft bands — ~65% lower cost than PID/MPC' },
+  { id: 'rlpd_hvac', scenario: 'hvac', url: './models/rlpd_hvac.onnx',
+    zh: 'RLPD · HVAC 节能', en: 'RLPD · HVAC economic',
+    noteZh: '舒适区内贴外温侧最小能耗：成本比 PID/MPC 低 ~22%',
+    noteEn: 'Rides the outdoor-favorable comfort edge — ~22% lower cost than PID/MPC' },
 ];
 
 export class RLController {
