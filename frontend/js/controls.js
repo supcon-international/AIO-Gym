@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=8';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=8';
+import { t } from './i18n.js?v=9';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=9';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -228,38 +228,28 @@ export function buildControls(bus, meta, catalog) {
   }
   const labelFor = (pk) => ({ value: t('幅度', 'Amplitude'), level_std: t('液位σ', 'Level σ'), temp_std: t('温度σ', 'Temp σ') }[pk] || pk);
 
-  // RL: pick a built-in trained policy (or load a custom .onnx) and run it in-browser.
+  // RL (supervisory): the scenario's policy auto-loads; RL sets setpoints, an inner
+  // PID regulates. No manual policy picking — entering RL mode loads the right one.
   function rlPanel(frame) {
     const rl = frame?.rl || {};
     const scn = frame?.scenario;
     const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('RL 策略', 'RL policy')));
-    w.append(h('div', { class: 'rl-status', id: 'rl-status' }, rl.status || t('未加载策略', 'No policy loaded')));
-
-    // Built-in policies — selectable directly. Picking one auto-switches to its
-    // scenario (each policy's obs/act contract is plant-specific) then loads it.
-    const sel = h('select', { class: 'rl-builtin', onchange: (e) => {
-      const p = BUILTIN_POLICIES.find((x) => x.id === e.target.value);
-      if (!p) return;
-      if (p.scenario !== scn) bus.send({ type: 'set_scenario', scenario: p.scenario });
-      bus.send({ type: 'set_rl_policy', src: p.url, mode: p.mode });
-    } });
-    sel.append(h('option', { value: '' }, t('内置策略…', 'Built-in policy…')));
-    for (const p of BUILTIN_POLICIES) {
-      const tag = p.scenario !== scn ? t('（切到 ' + p.scenario + '）', ' (→ ' + p.scenario + ')') : '';
-      sel.append(h('option', { value: p.id }, t(p.zh, p.en) + tag));
-    }
-    w.append(h('label', { class: 'rl-load' }, h('span', {}, t('内置策略', 'Built-in')), sel));
+    w.append(h('div', { class: 'group-title' }, t('RL 监督控制', 'RL supervisory control')));
+    w.append(h('div', { class: 'rl-status', id: 'rl-status' }, rl.status || t('加载中…', 'Loading…')));
+    w.append(h('div', { class: 'hint' }, t(
+      'RL 在线决定设定点，内层 PID 负责调节；按经济目标（价值−能耗）优化、随工况自适应。性能下界 = PID。',
+      'RL sets the setpoints online; an inner PID regulates. Optimizes the economic objective (value−energy) and adapts to 工况 drift. Floor = PID.')));
     const cur = BUILTIN_POLICIES.find((p) => p.scenario === scn);
-    if (cur) w.append(h('div', { class: 'hint' }, t(cur.noteZh, cur.noteEn)));
+    if (cur) w.append(h('div', { class: 'hint', style: 'color:var(--fx-deep-green); margin-top:6px' }, t(cur.noteZh, cur.noteEn)));
 
-    // Custom override: load your own trained/online-adapted .onnx by file or URL.
+    // advanced (collapsed): load a custom .onnx policy by file or URL
+    const adv = h('details', { class: 'tune', style: 'margin-top:8px' }, h('summary', {}, t('高级 · 加载自定义策略', 'Advanced · load custom policy')));
     const file = h('input', { type: 'file', accept: '.onnx',
       onchange: (e) => { const f = e.target.files[0]; if (f) f.arrayBuffer().then((b) => bus.send({ type: 'set_rl_policy', src: new Uint8Array(b) })); } });
-    w.append(h('label', { class: 'rl-load' }, h('span', {}, t('自定义 .onnx', 'Custom .onnx')), file));
     const url = h('input', { type: 'text', placeholder: t('models/policy.onnx 或 URL', 'models/policy.onnx or URL') });
-    w.append(h('div', { class: 'dist-param' }, url, h('button', { class: 'mini', onclick: () => { if (url.value) bus.send({ type: 'set_rl_policy', src: url.value }); } }, t('加载', 'Load'))));
-    w.append(h('div', { class: 'hint' }, t(`契约 obs=${rl.obsLen ?? '?'} · act=${rl.actLen ?? '?'}，动作 ∈[0,1]`, `Contract obs=${rl.obsLen ?? '?'} · act=${rl.actLen ?? '?'}, action ∈[0,1]`)));
+    adv.append(h('label', { class: 'rl-load' }, h('span', {}, t('文件', 'File')), file),
+               h('div', { class: 'dist-param' }, url, h('button', { class: 'mini', onclick: () => { if (url.value) bus.send({ type: 'set_rl_policy', src: url.value }); } }, t('加载 URL', 'Load URL'))));
+    w.append(adv);
     return w;
   }
 
@@ -278,7 +268,7 @@ export function buildControls(bus, meta, catalog) {
       mode = m; host.innerHTML = '';
       if (m === 'pid') { host.append(pidPanel(frame)); if (subEl) subEl.textContent = t('PID 自动', 'PID auto'); }
       else if (m === 'mpc') { host.append(mpcPanel(frame)); if (subEl) subEl.textContent = 'MPC'; }
-      else if (m === 'rl') { host.append(rlPanel(frame)); if (subEl) subEl.textContent = t('RL 策略', 'RL policy'); }
+      else if (m === 'rl') { host.append(rlPanel(frame)); if (subEl) subEl.textContent = t('RL 监督', 'RL supervisory'); }
       else if (m === 'ext') { host.append(extPanel(frame)); if (subEl) subEl.textContent = t('外部 MQTT', 'External MQTT'); }
       else { host.append(manualPanel()); if (subEl) subEl.textContent = t('手动', 'Manual'); }
       const cp = configPanel(frame); if (cp) host.append(h('div', { class: 'divider' }), cp);

@@ -1,12 +1,12 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=8';
-import { buildSchematic } from './schematic.js?v=8';
-import { buildCharts } from './charts.js?v=8';
-import { buildControls } from './controls.js?v=8';
-import { MqttBridge } from './mqtt.js?v=8';
-import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=8';
+import { Engine, CATALOG } from './sim/engine.js?v=9';
+import { buildSchematic } from './schematic.js?v=9';
+import { buildCharts } from './charts.js?v=9';
+import { buildControls } from './controls.js?v=9';
+import { MqttBridge } from './mqtt.js?v=9';
+import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=9';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;
@@ -162,30 +162,28 @@ function updateTopbar(f) {
 // ---------------- score ----------------
 function renderScore(sc) {
   if (!sc) return;
-  const k = sc.kpis, comp = sc.components, ec = sc.econ || {};
+  const k = sc.kpis, ec = sc.econ || {};
   const es = sc.econ_score ?? 0;
   const ecol = es >= 80 ? '#2E8B3D' : es >= 55 ? '#C77700' : '#C0392B';
   const tcol = sc.score >= 80 ? '#2E8B3D' : sc.score >= 55 ? '#C77700' : '#C0392B';
-  // Economic score is the headline — it's the objective the controllers should optimize
-  // (value − energy-cost within soft bands); the 工况-adaptive RL hugs the optimum here,
-  // while a fixed-SP PID/MPC scores low. Tracking KPI shown secondary.
-  const prodRow = ec.value === 'production'
-    ? kpi(t('产量', 'Production'), ec.production, t('mmol/s', 'mmol/s'))
-    : kpi(t('超额能耗', 'Excess'), k.excess_kwh, 'kWh');
+  // The objective is ECONOMIC: maximize value − energy-cost while staying in the soft
+  // safety/quality bands. Economic score is the headline; control KPI (loop regulation
+  // quality) is secondary. The economic primitive is production (reactor) or power draw.
+  const econKpi = ec.value === 'production'
+    ? kpi(t('产量', 'Production'), ec.production, 'mmol/s')
+    : kpi(t('能耗功率', 'Power'), k.avg_power_kw, 'kW');
   $('#score-body').innerHTML = `
-    <div class="score-big"><span class="score-num" style="color:${ecol}">${es.toFixed(0)}</span><span class="score-unit">/ 100 ${t('经济', 'Econ')}</span></div>
+    <div class="score-big"><span class="score-num" style="color:${ecol}">${es.toFixed(0)}</span><span class="score-unit">/ 100 ${t('经济得分', 'Economic')}</span></div>
     <div class="score-bar"><i style="width:${es}%;background:${ecol}"></i></div>
-    <div class="score-sub">${t('控制 KPI', 'Control KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b> / 100 · ${t('收益率', 'Profit rate')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step')}</div>
+    <div class="score-sub">${t('收益率', 'Profit rate')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step')} · ${t('控制 KPI', 'Control KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
     <div class="kpi-grid">
-      ${kpi(t('温度误差', 'Temp err'), k.avg_temp_err, t('°C 均', '°C avg'))}${kpi(t('液位误差', 'Level err'), k.avg_level_err_cm, t('cm 均', 'cm avg'))}
-      ${kpi(t('累计能耗', 'Energy'), k.energy_kwh, 'kWh')}${prodRow}
+      ${econKpi}${kpi(t('累计能耗', 'Energy'), k.energy_kwh, 'kWh')}
       ${kpi(t('联锁时长', 'Interlock'), k.interlock_seconds, 's')}${kpi(t('跳闸次数', 'Trips'), k.trip_events, t('次', '×'))}
     </div>
-    <div class="pen-title">${t('控制 KPI 扣分项', 'Control-KPI penalties')}</div>
-    ${pen(t('温度跟踪', 'Temp tracking'), comp.tracking_temp)}${pen(t('液位跟踪', 'Level tracking'), comp.tracking_level)}${pen(t('能耗', 'Energy'), comp.energy)}${pen(t('安全', 'Safety'), comp.safety)}`;
+    <div class="hint" style="margin-top:9px">${t('经济得分 = 软约束区间内「价值−能耗」的实现度；控制 KPI 反映回路调节质量。',
+      'Economic = realized value−energy within the soft safety/quality bands; Control KPI = loop regulation quality.')}</div>`;
 }
 const kpi = (k, v, u) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}<small> ${u}</small></div></div>`;
-const pen = (k, v) => `<div class="pen-row"><span>${k}</span><span>-${v}</span></div>`;
 
 // ---------------- alarms ----------------
 // Alarms carry a stable type + tank + value (the raw `message` stays English for

@@ -2,7 +2,7 @@
 // the ODE right-hand side, topology metadata, default control pairing and the
 // ideal-power reference for scoring. Same equations and numbers as the Python
 // reference, so behaviour matches. A model is integrated by ../sim/kernel.js.
-import { t } from '../i18n.js?v=8';
+import { t } from '../i18n.js?v=9';
 
 const RHO = 1000, CP = 4186, G = 9.81, RHO_CP = RHO * CP;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
