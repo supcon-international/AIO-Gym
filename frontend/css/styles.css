@@ -183,10 +183,6 @@ details.tune summary{cursor:pointer; font-size:12px; color:var(--fx-deep-green);
 @keyframes toastOut{to{opacity:0; transform:translateY(-10px)}}
 .auto-ev{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-2); cursor:pointer; font-weight:500}
 .auto-ev input{accent-color:var(--fx-deep-green)}
-.mqtt-row{display:flex; gap:6px; margin-bottom:7px}
-.mqtt-row input{flex:1; min-width:0; background:var(--fx-white); border:1px solid var(--border-strong); color:var(--text); border-radius:var(--radius); padding:5px 7px; font-family:var(--font-mono); font-size:11px}
-.mqtt-go{flex:0 0 auto; height:auto; padding:4px 12px}
-.mqtt-base{font-size:10.5px; color:var(--text-3); margin:2px 0 8px; word-break:break-all}
 
 /* ---------------- Disturbances ---------------- */
 .dist-item{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px}

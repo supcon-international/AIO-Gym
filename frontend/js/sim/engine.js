@@ -2,14 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=14';
-import { Integrator } from './kernel.js?v=14';
-import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=14';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=14';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=14';
-import { ScoreKeeper } from './scoring.js?v=14';
-import { Realism } from './realism.js?v=14';
-import { MPCController } from './mpc.js?v=14';
+import { makeModel } from './models.js?v=15';
+import { Integrator } from './kernel.js?v=15';
+import { ManualController, PIDController, RLController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=15';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=15';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=15';
+import { ScoreKeeper } from './scoring.js?v=15';
+import { Realism } from './realism.js?v=15';
+import { MPCController } from './mpc.js?v=15';
 
 const TICK = 0.05;
 const EPISODE_SIM_S = 600;   // one episode = 600 s sim time (= 1 min at 10x speed)
@@ -26,9 +26,8 @@ export class Engine {
     this.manual = new ManualController(this.model);
     this.pid = new PIDController(this.model);
     this.rl = new RLController(this.model);
-    this.ext = new ExternalController(this.model);
     this.mpc = new MPCController(this.model);
-    this.controllers = { manual: this.manual, pid: this.pid, mpc: this.mpc, rl: this.rl, ext: this.ext };
+    this.controllers = { manual: this.manual, pid: this.pid, mpc: this.mpc, rl: this.rl };
     this.mode = 'manual';
     this.disturb = new DisturbanceManager(this.model);
     this.alarmsMon = new AlarmMonitor(this.model);
@@ -75,7 +74,7 @@ export class Engine {
     if (scenario === this.scenario) return this.reset();
     this.scenario = scenario; this.model = makeModel(scenario); this.n = this.model.n;
     this.integ = new Integrator(this.model);
-    this.manual.bind(this.model); this.pid.bind(this.model); this.mpc.bind(this.model); this.rl.bind(this.model); this.ext.bind(this.model);
+    this.manual.bind(this.model); this.pid.bind(this.model); this.mpc.bind(this.model); this.rl.bind(this.model);
     this.alarmsMon.bind(this.model); this.score.bind(this.model); this.disturb.bind(this.model); this.realism.bind(this.model);
     this.disturb.clearAll(); this._initSetpoints(); this.reset();
     if (this.mode === 'rl') this._autoloadRL();          // load the new scenario's policy
@@ -175,7 +174,7 @@ export class Engine {
     return { height_max: hmax, h_high: hmax.map((h) => L.h_high_frac * h), h_low: hmax.map((h) => L.h_low_frac * h), t_high: L.t_high, t_trip: L.t_trip };
   }
 
-  // RL/MQTT helpers: flat observation vector and a per-step reward.
+  // RL helpers: flat observation vector and a per-step reward.
   obs() { return obsVector(this.model, this.meas || this.state, this.setpoints); }
   actionDim() { const [p, v, h] = this.model.actuatorCounts(); return p + v + h; }
   reward() {
@@ -205,7 +204,6 @@ export class Engine {
       case 'set_pid': this.pid.setConfig(msg); break;
       case 'set_model_config': this.model.setConfig(msg.config || {}); break;
       case 'set_rl_policy': this.rl.loadPolicy(msg.src, msg.mode); break;
-      case 'set_action': this.ext.setAction(msg.action); if (this.mode !== 'ext') this.setMode('ext'); break;
       case 'set_disturbance': this.disturb.set(msg.dtype, msg.params); break;
       case 'clear_disturbance': this.disturb.clear(msg.dtype); break;
       case 'clear_disturbances': this.disturb.clearAll(); break;

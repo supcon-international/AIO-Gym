@@ -1,7 +1,7 @@
 """AIOGymNativeEnv — a Gymnasium-first, native (numpy) env over the same plant
 dynamics as the browser AIO-Gym. Fast, synchronous, seedable and vectorizable —
-built for offline-data generation and online RL training (SAC / RLPD), where the
-browser-over-MQTT env is too slow and too loosely-coupled.
+built for offline-data generation and online RL training (SAC / RLPD), where a
+browser-coupled env would be too slow and too loosely-coupled.
 
 Physics parity with the browser JS is enforced by tests/test_parity.py.
 

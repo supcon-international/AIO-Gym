@@ -2,14 +2,14 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
-import { t } from '../i18n.js?v=14';
+import { t } from '../i18n.js?v=15';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);
 const fill = (n, v) => new Array(n).fill(v);
 const copyAct = (a) => ({ pumps: a.pumps.slice(), valves: a.valves.slice(), heaters: a.heaters.slice() });
 
-// Shared observation vector (RL ONNX + MQTT use the same contract):
+// Shared observation vector (the in-browser RL ONNX contract):
 //   obs = [ levels(n), temps(n), t_sp(n), h_sp(controlled k), t_cold, t_amb ]   length 3n+k+2
 // (level slots are 0 for scenarios without levels, e.g. CSTR/HVAC).
 export function obsVector(model, state, sp) {
@@ -123,21 +123,25 @@ export const SUPERVISORY = {
 // adapting its targets to 工况 (operating regime). All trained in aiogym/runs.
 export const BUILTIN_POLICIES = [
   { id: 'rlpd_cstr', scenario: 'cstr', url: './models/rlpd_cstr.onnx', mode: 'setpoint',
-    zh: 'RLPD · CSTR 经济', en: 'RLPD · CSTR economic',
+    zh: 'RLPD · CSTR 经济', en: 'RLPD · CSTR economic', ja: 'RLPD · CSTR 経済',
     noteZh: 'RL 设温度/进料目标、PID 控住：贴安全边界最大化产量，唯一盈利、超 PID/MPC',
-    noteEn: 'RL sets temp/feed targets, PID holds them — production-max on the safe edge, the only profitable one' },
+    noteEn: 'RL sets temp/feed targets, PID holds them — production-max on the safe edge, the only profitable one',
+    noteJa: 'RL が温度／供給目標を設定し PID が維持：安全境界に貼り付いて生産量最大化、唯一の黒字で PID/MPC を上回る' },
   { id: 'rlpd_cascade', scenario: 'cascade', url: './models/rlpd_cascade.onnx', mode: 'setpoint',
-    zh: 'RLPD · 多级水箱 节能', en: 'RLPD · Cascade economic',
+    zh: 'RLPD · 多级水箱 节能', en: 'RLPD · Cascade economic', ja: 'RLPD · 多段タンク 省エネ',
     noteZh: 'RL 设各罐温度目标、PID 控住：达标前提下最省能，运行成本低于 PID/MPC',
-    noteEn: 'RL sets tank temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC' },
+    noteEn: 'RL sets tank temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC',
+    noteJa: 'RL が各タンクの温度目標を設定し PID が維持：規格達成のうえで省エネ最大、運転コストは PID/MPC より低い' },
   { id: 'rlpd_quadruple', scenario: 'quadruple', url: './models/rlpd_quadruple.onnx', mode: 'setpoint',
-    zh: 'RLPD · 四水箱 节能', en: 'RLPD · Quadruple economic',
+    zh: 'RLPD · 四水箱 节能', en: 'RLPD · Quadruple economic', ja: 'RLPD · 4タンク 省エネ',
     noteZh: 'RL 设温度目标、PID 控住：达标前提下最省能，成本低于 PID/MPC',
-    noteEn: 'RL sets temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC' },
+    noteEn: 'RL sets temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC',
+    noteJa: 'RL が温度目標を設定し PID が維持：規格達成のうえで省エネ最大、コストは PID/MPC より低い' },
   { id: 'rlpd_hvac', scenario: 'hvac', url: './models/rlpd_hvac.onnx', mode: 'setpoint',
-    zh: 'RLPD · HVAC 节能', en: 'RLPD · HVAC economic',
+    zh: 'RLPD · HVAC 节能', en: 'RLPD · HVAC economic', ja: 'RLPD · HVAC 省エネ',
     noteZh: 'RL 设室温目标、PID 控住：舒适区内贴外温侧最省能，成本低于 PID/MPC',
-    noteEn: 'RL sets zone-temp targets, PID holds them — min-energy in comfort band, lower cost' },
+    noteEn: 'RL sets zone-temp targets, PID holds them — min-energy in comfort band, lower cost',
+    noteJa: 'RL が室温目標を設定し PID が維持：快適域内で外気側に貼り付いて省エネ最大、コストも低い' },
 ];
 
 export class RLController {
@@ -249,24 +253,26 @@ export class RLController {
   _hint(msg) {
     const dim = /Got:\s*(\d+)\s*Expected:\s*(\d+)/.exec(msg);       // obs mismatch: Got=scenario, Expected=policy
     if (dim) return t(`策略输入维度=${dim[2]}，与当前场景 obs=${dim[1]} 不匹配——请切到匹配场景或选用对应策略`,
-                      `policy expects obs=${dim[2]} but this scenario is obs=${dim[1]} — switch scenario or pick a matching policy`);
+                      `policy expects obs=${dim[2]} but this scenario is obs=${dim[1]} — switch scenario or pick a matching policy`,
+                      `方策の入力次元=${dim[2]} は現在のシーン obs=${dim[1]} と不一致——一致するシーンに切り替えるか対応する方策を選んでください`);
     const am = /^__DIM__act (\d+) (\d+)/.exec(msg);                  // act mismatch
     if (am) return t(`策略输出维度=${am[1]}，与当前场景 act=${am[2]} 不匹配`,
-                     `policy outputs act=${am[1]} but this scenario needs act=${am[2]}`);
+                     `policy outputs act=${am[1]} but this scenario needs act=${am[2]}`,
+                     `方策の出力次元=${am[1]} は現在のシーン act=${am[2]} と次元不一致`);
     return msg;
   }
   // Localize the status at read-time so a language toggle updates it immediately.
   getStatus() {
     const sup = this.mode === 'setpoint' && this.layout;
     const outN = sup ? this.layout.length : this.actLen;
-    const loaded = sup ? t(`策略已加载 · RL→设定点(${outN})→PID`, `Loaded · RL→setpoints(${outN})→PID`)
-                       : t(`策略已加载 (obs=${this.obsLen}, act=${this.actLen})`, `Policy loaded (obs=${this.obsLen}, act=${this.actLen})`);
+    const loaded = sup ? t(`策略已加载 · RL→设定点(${outN})→PID`, `Loaded · RL→setpoints(${outN})→PID`, `方策読み込み済み · RL→設定値(${outN})→PID`)
+                       : t(`策略已加载 (obs=${this.obsLen}, act=${this.actLen})`, `Policy loaded (obs=${this.obsLen}, act=${this.actLen})`, `方策読み込み済み (obs=${this.obsLen}, act=${this.actLen})`);
     const s = this._st, st =
-      s.k === 'loading' ? t('加载中…', 'Loading…')
+      s.k === 'loading' ? t('加载中…', 'Loading…', '読み込み中…')
       : s.k === 'loaded' ? loaded
-      : s.k === 'err' ? t('ONNX 推理出错', 'ONNX inference error') + ': ' + s.msg
-      : s.k === 'fail' ? t('加载失败', 'Load failed') + ': ' + s.msg
-      : t('未加载策略', 'No policy loaded');
+      : s.k === 'err' ? t('ONNX 推理出错', 'ONNX inference error', 'ONNX 推論エラー') + ': ' + s.msg
+      : s.k === 'fail' ? t('加载失败', 'Load failed', '読み込み失敗') + ': ' + s.msg
+      : t('未加载策略', 'No policy loaded', '方策が読み込まれていません');
     return { ready: this.ready, status: st, obsLen: this.obsLen, actLen: this.actLen };
   }
 }
@@ -277,27 +283,4 @@ function loadScript(src) {
     s.src = src; s.onload = res; s.onerror = () => rej(new Error('无法加载 onnxruntime-web (离线? 可改为本地 vendored)'));
     document.head.appendChild(s);
   });
-}
-
-// ---------------- External controller (actions arrive over MQTT) ----------------
-// Holds the latest action vector written by an outside agent (e.g. an RL policy
-// running in Python, talking over MQTT). The flat vector order is
-// [pumps..., valves..., heaters...], matching the RL/obs contract.
-export class ExternalController {
-  constructor(model) { this.bind(model); }
-  bind(model) {
-    const [nP, nV, nH] = model.actuatorCounts();
-    this.nP = nP; this.nV = nV; this.nH = nH;
-    this.last = { pumps: fill(nP, 0.3), valves: fill(nV, 0.5), heaters: zeros(nH) };
-  }
-  reset() {}
-  setAction(vec) {
-    if (!Array.isArray(vec)) return;
-    let k = 0; const a = { pumps: [], valves: [], heaters: [] };
-    for (let i = 0; i < this.nP; i++) a.pumps.push(clamp01(vec[k++] ?? this.last.pumps[i]));
-    for (let i = 0; i < this.nV; i++) a.valves.push(clamp01(vec[k++] ?? this.last.valves[i]));
-    for (let i = 0; i < this.nH; i++) a.heaters.push(clamp01(vec[k++] ?? this.last.heaters[i]));
-    this.last = a;
-  }
-  compute() { return copyAct(this.last); }
 }

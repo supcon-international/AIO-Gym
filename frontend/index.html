@@ -23,16 +23,16 @@
       </button>
       <div class="scn-menu" id="scenario-seg" hidden>
         <button data-scenario="cascade" class="active">
-          <span class="mk">▤</span><span class="mt" data-zh="多级加热水箱链" data-en="Heated-Tank Cascade">多级加热水箱链</span>
+          <span class="mk">▤</span><span class="mt" data-zh="多级加热水箱链" data-en="Heated-Tank Cascade" data-ja="多段加熱タンクチェーン">多级加热水箱链</span>
         </button>
         <button data-scenario="quadruple">
-          <span class="mk">◫</span><span class="mt" data-zh="四水箱过程" data-en="Quadruple-Tank">四水箱过程</span>
+          <span class="mk">◫</span><span class="mt" data-zh="四水箱过程" data-en="Quadruple-Tank" data-ja="4タンクプロセス">四水箱过程</span>
         </button>
         <button data-scenario="cstr">
-          <span class="mk">⊚</span><span class="mt" data-zh="放热反应器 CSTR" data-en="Exothermic CSTR">放热反应器 CSTR</span>
+          <span class="mk">⊚</span><span class="mt" data-zh="放热反应器 CSTR" data-en="Exothermic CSTR" data-ja="発熱反応器 CSTR">放热反应器 CSTR</span>
         </button>
         <button data-scenario="hvac">
-          <span class="mk">⌂</span><span class="mt" data-zh="双区 HVAC 温控" data-en="Two-Zone HVAC">双区 HVAC 温控</span>
+          <span class="mk">⌂</span><span class="mt" data-zh="双区 HVAC 温控" data-en="Two-Zone HVAC" data-ja="2ゾーン HVAC 温度制御">双区 HVAC 温控</span>
         </button>
       </div>
     </div>
@@ -40,9 +40,9 @@
     <div class="tb-spacer"></div>
 
     <div class="ctl-group">
-      <span class="ctl-lbl" data-zh="控制" data-en="Mode">控制</span>
+      <span class="ctl-lbl" data-zh="控制" data-en="Mode" data-ja="制御">控制</span>
       <div class="seg" id="mode-seg" title="控制模式 / Control mode">
-        <button data-mode="manual" class="active" data-zh="手动" data-en="Manual">手动</button>
+        <button data-mode="manual" class="active" data-zh="手动" data-en="Manual" data-ja="手動">手动</button>
         <button data-mode="pid">PID</button>
         <button data-mode="mpc" title="APC 风格多变量 MPC / APC-style MPC">MPC</button>
         <button data-mode="rl" title="RL 监督控制：RL 设定点 → PID / RL supervisory control">RL</button>
@@ -50,21 +50,21 @@
     </div>
 
     <div class="tb-speed" title="仿真倍速 / Sim speed">
-      <span class="ctl-lbl" data-zh="倍速" data-en="Speed">倍速</span>
+      <span class="ctl-lbl" data-zh="倍速" data-en="Speed" data-ja="速度">倍速</span>
       <input type="range" id="speed" min="0.5" max="10" step="0.5" value="1" />
       <span id="speed-val" class="mono">1.0×</span>
     </div>
 
     <div class="ctl-group" title="仪表与执行机构实感:理想=完美测量与执行;真实=带噪声/迟延/滞后/黏滞 · Instrument & actuator realism (ideal = perfect; real = noise/deadtime/lag/stiction)">
-      <span class="ctl-lbl" data-zh="实感" data-en="Realism">实感</span>
+      <span class="ctl-lbl" data-zh="实感" data-en="Realism" data-ja="忠実度">实感</span>
       <div class="seg sm" id="fidelity-seg">
-        <button data-fid="0" data-zh="理想" data-en="Ideal">理想</button>
-        <button data-fid="1" class="active" data-zh="真实" data-en="Real">真实</button>
+        <button data-fid="0" data-zh="理想" data-en="Ideal" data-ja="理想">理想</button>
+        <button data-fid="1" class="active" data-zh="真实" data-en="Real" data-ja="リアル">真实</button>
       </div>
     </div>
 
     <button id="btn-run" class="btn-primary">暂停</button>
-    <button id="btn-reset" class="btn-secondary" data-zh="复位" data-en="Reset">复位</button>
+    <button id="btn-reset" class="btn-secondary" data-zh="复位" data-en="Reset" data-ja="リセット">复位</button>
     <button id="lang-btn" class="lang-btn" title="中文 / English">EN</button>
 
     <div class="tb-status">
@@ -77,12 +77,12 @@
   <main class="grid">
     <section class="col col-left">
       <div class="panel" id="control-panel">
-        <div class="panel-h"><span data-zh="控制面板" data-en="Control">控制面板</span><span id="control-sub" class="tag">手动</span></div>
+        <div class="panel-h"><span data-zh="控制面板" data-en="Control" data-ja="制御パネル">控制面板</span><span id="control-sub" class="tag">手动</span></div>
         <div class="panel-b" id="control-body"></div>
       </div>
       <div class="panel" id="disturb-panel">
-        <div class="panel-h"><span data-zh="扰动 / 故障" data-en="Disturbance / Fault">扰动 / 故障</span>
-          <label class="auto-ev" title="周期性随机扰动/故障(冷进料阶跃、需求激增、设备故障)· periodic random disturbances"><input type="checkbox" id="auto-events" checked /> <span data-zh="自动" data-en="Auto">自动</span></label>
+        <div class="panel-h"><span data-zh="扰动 / 故障" data-en="Disturbance / Fault" data-ja="外乱 / 故障">扰动 / 故障</span>
+          <label class="auto-ev" title="周期性随机扰动/故障(冷进料阶跃、需求激增、设备故障)· periodic random disturbances"><input type="checkbox" id="auto-events" checked /> <span data-zh="自动" data-en="Auto" data-ja="自動">自动</span></label>
         </div>
         <div class="panel-b" id="disturb-body"></div>
       </div>
@@ -90,7 +90,7 @@
 
     <section class="col col-center">
       <div class="panel schematic-panel">
-        <div class="panel-h"><span data-zh="工艺流程 P&amp;ID" data-en="Process P&amp;ID">工艺流程 P&amp;ID</span><span id="env-readout" class="muted mono"></span></div>
+        <div class="panel-h"><span data-zh="工艺流程 P&amp;ID" data-en="Process P&amp;ID" data-ja="プロセスフロー P&amp;ID">工艺流程 P&amp;ID</span><span id="env-readout" class="muted mono"></span></div>
         <div class="panel-b" id="schematic-host"></div>
       </div>
       <div class="charts" id="charts-host"></div>
@@ -98,11 +98,11 @@
 
     <section class="col col-right">
       <div class="panel" id="score-panel">
-        <div class="panel-h"><span data-zh="评分 / KPI" data-en="Score / KPI">评分 / KPI</span><span id="score-mode" class="muted mono"></span></div>
+        <div class="panel-h"><span data-zh="评分 / KPI" data-en="Score / KPI" data-ja="スコア / KPI">评分 / KPI</span><span id="score-mode" class="muted mono"></span></div>
         <div class="panel-b" id="score-body"></div>
       </div>
       <div class="panel alarm-panel">
-        <div class="panel-h"><span data-zh="报警 / 联锁" data-en="Alarms / Interlocks">报警 / 联锁</span><span id="alarm-count" class="badge">0</span></div>
+        <div class="panel-h"><span data-zh="报警 / 联锁" data-en="Alarms / Interlocks" data-ja="アラーム / インターロック">报警 / 联锁</span><span id="alarm-count" class="badge">0</span></div>
         <div class="panel-b" id="alarm-body"><div class="no-alarm">— 无报警 —</div></div>
       </div>
     </section>
@@ -111,6 +111,6 @@
   <div id="toast-host" class="toast-host"></div>
 
   <script src="./vendor/uPlot.iife.min.js"></script>
-  <script type="module" src="./js/app.js?v=14"></script>
+  <script type="module" src="./js/app.js?v=15"></script>
 </body>
 </html>

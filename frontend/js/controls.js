@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=14';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=14';
+import { t } from './i18n.js?v=15';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=15';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -19,26 +19,26 @@ function h(tag, props = {}, ...kids) {
 
 // Bilingual labels for the disturbance catalogue (keyed by CATALOG key).
 const DIST_LABEL = {
-  cold_inlet: () => t('冷进料温度阶跃', 'Cold inlet temp step'),
-  ambient: () => t('环境温度变化', 'Ambient temp change'),
-  demand_surge: () => t('下游需求激增', 'Downstream demand surge'),
-  sensor_noise: () => t('传感器噪声', 'Sensor noise'),
-  heater_fault: () => t('加热器失效（卡关）', 'Heater dead (stuck off)'),
-  valve_stuck: () => t('阀卡死', 'Valve stuck'),
-  pump_trip: () => t('泵跳闸（无进料）', 'Pump trip (no inflow)'),
+  cold_inlet: () => t('冷进料温度阶跃', 'Cold inlet temp step', '冷供給温度ステップ'),
+  ambient: () => t('环境温度变化', 'Ambient temp change', '外気温度変化'),
+  demand_surge: () => t('下游需求激增', 'Downstream demand surge', '下流需要の急増'),
+  sensor_noise: () => t('传感器噪声', 'Sensor noise', 'センサーノイズ'),
+  heater_fault: () => t('加热器失效（卡关）', 'Heater dead (stuck off)', '加熱器故障（オフ固着）'),
+  valve_stuck: () => t('阀卡死', 'Valve stuck', 'バルブ固着'),
+  pump_trip: () => t('泵跳闸（无进料）', 'Pump trip (no inflow)', 'ポンプトリップ（供給なし）'),
 };
 
 // The economic reward each RL policy optimizes (mirrors aiogym/env.py ECON). Per step:
 // reward = w_value·value − w_energy·energy(kW) − w_viol·soft-band-violation.
 const REWARD_FN = {
-  cstr:      { zh: 'r = 900·产量 − 0.4·冷却功率(kW) − 8·超温(T>88°C)', en: 'r = 900·prod − 0.4·cooling(kW) − 8·over(T>88°C)',
-               nZh: '最大化产量(贴 88°C 安全边界,92°C 失控);冷却为成本,越界软罚。', nEn: 'Max production hugging the 88°C safe edge (92°C runaway); cooling is cost; soft over-cap penalty.' },
-  cascade:   { zh: 'r = −0.9·加热功率(kW) − 6·欠温(罐温 < 33/46/58°C)', en: 'r = −0.9·heat(kW) − 6·under(tank T < 33/46/58°C)',
-               nZh: '达标(温度≥下限)前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec (temps ≥ lower band).' },
-  quadruple: { zh: 'r = −0.9·加热功率(kW) − 6·欠温(温度 < 46/46/32/32°C)', en: 'r = −0.9·heat(kW) − 6·under(T < 46/46/32/32°C)',
-               nZh: '达标前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec.' },
-  hvac:      { zh: 'r = −1.2·功率(kW) − 7·越界(室温 ∉ [20,24]°C)', en: 'r = −1.2·power(kW) − 7·band(T ∉ [20,24]°C)',
-               nZh: '室温维持在 20–24°C 舒适区内,最省冷/热功率。', nEn: 'Keep rooms in the 20–24°C comfort band at minimum power.' },
+  cstr:      { zh: 'r = 900·产量 − 0.4·冷却功率(kW) − 8·超温(T>88°C)', en: 'r = 900·prod − 0.4·cooling(kW) − 8·over(T>88°C)', ja: 'r = 900·生産量 − 0.4·冷却出力(kW) − 8·過温(T>88°C)',
+               nZh: '最大化产量(贴 88°C 安全边界,92°C 失控);冷却为成本,越界软罚。', nEn: 'Max production hugging the 88°C safe edge (92°C runaway); cooling is cost; soft over-cap penalty.', nJa: '88°C の安全限界ギリギリで生産量を最大化(92°C で暴走);冷却はコスト、超過は軟ペナルティ。' },
+  cascade:   { zh: 'r = −0.9·加热功率(kW) − 6·欠温(罐温 < 33/46/58°C)', en: 'r = −0.9·heat(kW) − 6·under(tank T < 33/46/58°C)', ja: 'r = −0.9·加熱出力(kW) − 6·温度不足(タンク温度 < 33/46/58°C)',
+               nZh: '达标(温度≥下限)前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec (temps ≥ lower band).', nJa: '規格達成(温度 ≥ 下限)を前提に加熱エネルギーを最小化。' },
+  quadruple: { zh: 'r = −0.9·加热功率(kW) − 6·欠温(温度 < 46/46/32/32°C)', en: 'r = −0.9·heat(kW) − 6·under(T < 46/46/32/32°C)', ja: 'r = −0.9·加熱出力(kW) − 6·温度不足(温度 < 46/46/32/32°C)',
+               nZh: '达标前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec.', nJa: '規格達成を前提に加熱エネルギーを最小化。' },
+  hvac:      { zh: 'r = −1.2·功率(kW) − 7·越界(室温 ∉ [20,24]°C)', en: 'r = −1.2·power(kW) − 7·band(T ∉ [20,24]°C)', ja: 'r = −1.2·出力(kW) − 7·範囲外(室温 ∉ [20,24]°C)',
+               nZh: '室温维持在 20–24°C 舒适区内,最省冷/热功率。', nEn: 'Keep rooms in the 20–24°C comfort band at minimum power.', nJa: '室温を 20–24°C の快適域に保ちつつ冷暖房出力を最小化。' },
 };
 
 export function buildControls(bus, meta, catalog) {
@@ -62,13 +62,13 @@ export function buildControls(bus, meta, catalog) {
 
   function manualPanel() {
     const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('进料泵', 'Pumps')));
+    w.append(h('div', { class: 'group-title' }, t('进料泵', 'Pumps', '供給ポンプ')));
     A.pumps.forEach((lab, i) => w.append(slider('pump', i, lab, (v) => `${(v * 100).toFixed(0)}%`, 0.3, '')));
     if (A.valves.length) {
-      w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('出料阀', 'Valves')));
+      w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('出料阀', 'Valves', '排出バルブ')));
       A.valves.forEach((lab, i) => w.append(slider('valve', i, lab, (v) => `${(v * 100).toFixed(0)}%`, 0.5, 'valve')));
     }
-    w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('加热器', 'Heaters')));
+    w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('加热器', 'Heaters', '加熱器')));
     A.heaters.forEach((lab, i) => w.append(slider('heater', i, lab, (v) => `${(v * (heaterKW[i] || 90)).toFixed(1)} kW`, 0, 'heater')));
     return w;
   }
@@ -80,14 +80,14 @@ export function buildControls(bus, meta, catalog) {
     const w = h('div');
 
     // level setpoints (only controlled)
-    w.append(h('div', { class: 'group-title' }, t('液位设定 (m)', 'Level SP (m)')));
+    w.append(h('div', { class: 'group-title' }, t('液位设定 (m)', 'Level SP (m)', '液位設定値 (m)')));
     ctrl.forEach((idx) => {
       const inp = h('input', { type: 'number', step: 0.01, min: 0, max: 0.8, value: (sp.h_sp[idx] ?? 0.4).toFixed(2), onchange: sendSP });
       inp.dataset.hsp = idx;
       w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[idx]), inp, h('span')));
     });
     // temperature setpoints (every tank)
-    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('温度设定 (°C)', 'Temp SP (°C)')));
+    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('温度设定 (°C)', 'Temp SP (°C)', '温度設定値 (°C)')));
     for (let i = 0; i < n; i++) {
       const inp = h('input', { type: 'number', step: 1, min: 10, max: 90, value: (sp.t_sp[i] ?? 50).toFixed(0), onchange: sendSP });
       inp.dataset.tsp = i;
@@ -105,18 +105,18 @@ export function buildControls(bus, meta, catalog) {
     if (A.valves.length) {
       const dv = cfg?.demand_valve ?? 0.5;
       const dval = h('span', { class: 'val' }, `${(dv * 100) | 0}%`);
-      w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('需求阀（扰动）', 'Demand valve (disturbance)')),
-        h('div', { class: 'ctrl-row' }, h('div', { class: 'ctrl-label' }, h('span', { class: 'name' }, t('下游需求', 'Downstream demand')), dval),
+      w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('需求阀（扰动）', 'Demand valve (disturbance)', '需要バルブ（外乱）')),
+        h('div', { class: 'ctrl-row' }, h('div', { class: 'ctrl-label' }, h('span', { class: 'name' }, t('下游需求', 'Downstream demand', '下流需要')), dval),
           h('input', { type: 'range', min: 0, max: 1, step: 0.01, value: dv, class: 'valve', oninput: (e) => { dval.textContent = `${(e.target.value * 100) | 0}%`; bus.send({ type: 'set_pid', demand_valve: +e.target.value }); } })));
     }
 
     // PID gains
-    const tune = h('details', { class: 'tune' }, h('summary', {}, t('PID 整定', 'PID tuning')));
+    const tune = h('details', { class: 'tune' }, h('summary', {}, t('PID 整定', 'PID tuning', 'PID 整定')));
     const g = cfg?.gains || {};
     const grid = h('div', { class: 'gain-grid' }, h('span'), h('span', { class: 'gh' }, 'Kp'), h('span', { class: 'gh' }, 'Ki'), h('span', { class: 'gh' }, 'Kd'));
     const loops = A.valves.length
-      ? [['level_pump', t('液位·泵', 'Level·pump')], ['level_valve', t('液位·阀', 'Level·valve')], ['temp', t('温度', 'Temp')]]
-      : [['level_pump', t('液位·泵', 'Level·pump')], ['temp', t('温度', 'Temp')]];
+      ? [['level_pump', t('液位·泵', 'Level·pump', '液位·ポンプ')], ['level_valve', t('液位·阀', 'Level·valve', '液位·バルブ')], ['temp', t('温度', 'Temp', '温度')]]
+      : [['level_pump', t('液位·泵', 'Level·pump', '液位·ポンプ')], ['temp', t('温度', 'Temp', '温度')]];
     for (const [key, label] of loops) {
       grid.append(h('label', {}, label));
       for (const p of ['kp', 'ki', 'kd']) {
@@ -139,19 +139,19 @@ export function buildControls(bus, meta, catalog) {
     const cfg = frame?.mpc || {};
     const ctrl = meta.controlled_levels || [];
     const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('APC 配置', 'APC setup')));
-    w.append(h('div', { class: 'rl-status' }, t(`CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · 预测 ${cfg.P ?? '?'} 步 · 周期 ${cfg.Ts ?? '?'}s`, `CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · horizon ${cfg.P ?? '?'} · Ts ${cfg.Ts ?? '?'}s`)));
+    w.append(h('div', { class: 'group-title' }, t('APC 配置', 'APC setup', 'APC 設定')));
+    w.append(h('div', { class: 'rl-status' }, t(`CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · 预测 ${cfg.P ?? '?'} 步 · 周期 ${cfg.Ts ?? '?'}s`, `CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · horizon ${cfg.P ?? '?'} · Ts ${cfg.Ts ?? '?'}s`, `CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · 予測 ${cfg.P ?? '?'} ステップ · 周期 ${cfg.Ts ?? '?'}s`)));
 
     // CV setpoints (the controlled levels + every temperature)
     if (ctrl.length) {
-      w.append(h('div', { class: 'group-title' }, t('CV 设定 · 液位 (m)', 'CV setpoints · level (m)')));
+      w.append(h('div', { class: 'group-title' }, t('CV 设定 · 液位 (m)', 'CV setpoints · level (m)', 'CV 設定値 · 液位 (m)')));
       ctrl.forEach((idx) => {
         const inp = h('input', { type: 'number', step: 0.01, min: 0, max: 0.8, value: (sp.h_sp[idx] ?? 0.4).toFixed(2), onchange: sendSP });
         inp.dataset.hsp = idx;
         w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[idx]), inp, h('span')));
       });
     }
-    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('CV 设定 · 温度 (°C)', 'CV setpoints · temp (°C)')));
+    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('CV 设定 · 温度 (°C)', 'CV setpoints · temp (°C)', 'CV 設定値 · 温度 (°C)')));
     for (let i = 0; i < n; i++) {
       const inp = h('input', { type: 'number', step: 1, min: 10, max: 90, value: (sp.t_sp[i] ?? 50).toFixed(0), onchange: sendSP });
       inp.dataset.tsp = i;
@@ -166,17 +166,17 @@ export function buildControls(bus, meta, catalog) {
     }
 
     // APC tuning knobs
-    const tune = h('details', { class: 'tune' }, h('summary', {}, t('MPC 整定', 'MPC tuning')));
+    const tune = h('details', { class: 'tune' }, h('summary', {}, t('MPC 整定', 'MPC tuning', 'MPC 整定')));
     const tbox = h('div', { class: 'gain-grid', style: 'grid-template-columns:auto 1fr' });
     const row = (label, key, val, step) => {
       const inp = h('input', { type: 'number', step, value: val, onchange: (e) => bus.send({ type: 'set_mpc', [key]: +e.target.value }) });
       tbox.append(h('label', {}, label), inp);
     };
-    row(t('移动抑制', 'Move suppression'), 'moveSupp', cfg.moveSupp ?? 0.8, 0.1);
-    row(t('最大移动 / 周期', 'Max move / cycle'), 'duMax', cfg.duMax ?? 0.15, 0.01);
-    row(t('预测步长', 'Prediction horizon'), 'P', cfg.P ?? 40, 5);
+    row(t('移动抑制', 'Move suppression', '移動抑制'), 'moveSupp', cfg.moveSupp ?? 0.8, 0.1);
+    row(t('最大移动 / 周期', 'Max move / cycle', '最大移動 / 周期'), 'duMax', cfg.duMax ?? 0.15, 0.01);
+    row(t('预测步长', 'Prediction horizon', '予測ホライズン'), 'P', cfg.P ?? 40, 5);
     tune.append(tbox); w.append(tune);
-    w.append(h('div', { class: 'hint' }, t('MV 经执行器写入;CV 预测后求解约束 QP，无静差。', 'MVs write to the actuators; CVs are predicted and a constrained QP is solved, offset-free.')));
+    w.append(h('div', { class: 'hint' }, t('MV 经执行器写入;CV 预测后求解约束 QP，无静差。', 'MVs write to the actuators; CVs are predicted and a constrained QP is solved, offset-free.', 'MV はアクチュエータへ書き込み;CV は予測し制約付き QP を解く、定常偏差なし。')));
     return w;
   }
 
@@ -185,24 +185,24 @@ export function buildControls(bus, meta, catalog) {
     const cfg = (frame?.meta?.config) || meta.config || {};
     if (cfg.gamma1 == null) return null;
     const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('分流比 γ', 'Split ratio γ')));
+    w.append(h('div', { class: 'group-title' }, t('分流比 γ', 'Split ratio γ', '分流比 γ')));
     const phase = h('div', { class: 'phase-tag', id: 'phase-tag' }, cfg.phase || '');
     for (const key of ['gamma1', 'gamma2']) {
       const val = h('span', { class: 'val' }, (cfg[key] ?? 0.7).toFixed(2));
       const inp = h('input', { type: 'range', min: 0.05, max: 0.95, step: 0.01, value: cfg[key] ?? 0.7, class: 'gamma',
         oninput: (e) => { val.textContent = (+e.target.value).toFixed(2); bus.send({ type: 'set_model_config', config: { [key]: +e.target.value } }); } });
       inp.dataset.gamma = key;
-      w.append(h('div', { class: 'ctrl-row' }, h('div', { class: 'ctrl-label' }, h('span', { class: 'name' }, key === 'gamma1' ? t('γ₁ (泵1→下罐1)', 'γ₁ (pump1→tank1)') : t('γ₂ (泵2→下罐2)', 'γ₂ (pump2→tank2)')), val), inp));
+      w.append(h('div', { class: 'ctrl-row' }, h('div', { class: 'ctrl-label' }, h('span', { class: 'name' }, key === 'gamma1' ? t('γ₁ (泵1→下罐1)', 'γ₁ (pump1→tank1)', 'γ₁ (ポンプ1→下タンク1)') : t('γ₂ (泵2→下罐2)', 'γ₂ (pump2→tank2)', 'γ₂ (ポンプ2→下タンク2)')), val), inp));
     }
     w.append(phase);
-    w.append(h('div', { class: 'hint' }, t('γ₁+γ₂ < 1 → 非最小相位（RHP 零点，更难控）', 'γ₁+γ₂ < 1 → non-minimum-phase (RHP zero, harder)')));
+    w.append(h('div', { class: 'hint' }, t('γ₁+γ₂ < 1 → 非最小相位（RHP 零点，更难控）', 'γ₁+γ₂ < 1 → non-minimum-phase (RHP zero, harder)', 'γ₁+γ₂ < 1 → 非最小位相（RHP 零点、制御困難）')));
     return w;
   }
 
   // disturbances — auto by default (header checkbox); manual injection collapsed below
   function disturbPanel() {
     const w = h('div'), cat = catalog.disturbances;
-    const det = h('details', { class: 'tune' }, h('summary', {}, t('手动注入', 'Manual inject')));
+    const det = h('details', { class: 'tune' }, h('summary', {}, t('手动注入', 'Manual inject', '手動注入')));
     const box0 = h('div');
     for (const key in cat) {
       const def = cat[key];
@@ -213,7 +213,7 @@ export function buildControls(bus, meta, catalog) {
         else bus.send({ type: 'clear_disturbance', dtype: key });
       } });
       const label = (DIST_LABEL[key] ? DIST_LABEL[key]() : def.label);
-      box0.append(h('div', { class: 'dist-item' }, h('div', { class: 'dn' }, label, h('small', {}, def.kind === 'fault' ? t('故障', 'fault') : t('扰动', 'disturbance'))), toggle));
+      box0.append(h('div', { class: 'dist-item' }, h('div', { class: 'dn' }, label, h('small', {}, def.kind === 'fault' ? t('故障', 'fault', '故障') : t('扰动', 'disturbance', '外乱'))), toggle));
       const pb = paramInputs(key, def, () => { if (toggle.classList.contains('on')) bus.send({ type: 'set_disturbance', dtype: key, params: readParams(key) }); });
       if (pb) box0.append(pb);
     }
@@ -231,7 +231,7 @@ export function buildControls(bus, meta, catalog) {
       if (pk === 'index') {
         const sel = h('select', { onchange: onchg }); sel.dataset.pk = pk;
         for (let i = 0; i < n; i++) sel.append(h('option', { value: i }, meta.tank_labels[i]));
-        sel.value = d[pk]; box.append(h('span', {}, t('目标', 'Target')), sel);
+        sel.value = d[pk]; box.append(h('span', {}, t('目标', 'Target', '対象')), sel);
       } else {
         const inp = h('input', { type: 'number', step: pk.includes('std') ? 0.01 : (key.includes('demand') ? 0.0001 : 0.5), value: d[pk], onchange: onchg });
         inp.dataset.pk = pk; box.append(h('span', {}, labelFor(pk)), inp);
@@ -239,7 +239,7 @@ export function buildControls(bus, meta, catalog) {
     }
     return box;
   }
-  const labelFor = (pk) => ({ value: t('幅度', 'Amplitude'), level_std: t('液位σ', 'Level σ'), temp_std: t('温度σ', 'Temp σ') }[pk] || pk);
+  const labelFor = (pk) => ({ value: t('幅度', 'Amplitude', '振幅'), level_std: t('液位σ', 'Level σ', '液位σ'), temp_std: t('温度σ', 'Temp σ', '温度σ') }[pk] || pk);
 
   // RL (supervisory): the scenario's policy auto-loads; RL sets setpoints, an inner
   // PID regulates. No manual policy picking — entering RL mode loads the right one.
@@ -247,29 +247,30 @@ export function buildControls(bus, meta, catalog) {
     const rl = frame?.rl || {};
     const scn = frame?.scenario;
     const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('RL 监督控制', 'RL supervisory control')));
-    w.append(h('div', { class: 'rl-status', id: 'rl-status' }, rl.status || t('加载中…', 'Loading…')));
+    w.append(h('div', { class: 'group-title' }, t('RL 监督控制', 'RL supervisory control', 'RL 監督制御')));
+    w.append(h('div', { class: 'rl-status', id: 'rl-status' }, rl.status || t('加载中…', 'Loading…', '読み込み中…')));
     w.append(h('div', { class: 'hint' }, t(
       'RL 在线决定设定点，内层 PID 负责调节；按经济目标（价值−能耗）优化、随工况自适应。性能下界 = PID。',
-      'RL sets the setpoints online; an inner PID regulates. Optimizes the economic objective (value−energy) and adapts to 工况 drift. Floor = PID.')));
+      'RL sets the setpoints online; an inner PID regulates. Optimizes the economic objective (value−energy) and adapts to 工况 drift. Floor = PID.',
+      'RL がオンラインで設定値を決定し、内層 PID が調節;経済目標（価値−エネルギー）で最適化し、運転条件の変動に適応。性能下限 = PID。')));
     const cur = BUILTIN_POLICIES.find((p) => p.scenario === scn);
-    if (cur) w.append(h('div', { class: 'hint', style: 'color:var(--fx-deep-green); margin-top:6px' }, t(cur.noteZh, cur.noteEn)));
+    if (cur) w.append(h('div', { class: 'hint', style: 'color:var(--fx-deep-green); margin-top:6px' }, t(cur.noteZh, cur.noteEn, cur.noteJa)));
 
     // the actual reward function the policy optimizes (per control step)
     const rf = REWARD_FN[scn];
     if (rf) {
-      w.append(h('div', { class: 'group-title', style: 'margin-top:11px' }, t('奖励函数 (每步)', 'Reward function (per step)')));
-      w.append(h('div', { class: 'reward-formula' }, t(rf.zh, rf.en)));
-      w.append(h('div', { class: 'hint' }, t(rf.nZh, rf.nEn)));
+      w.append(h('div', { class: 'group-title', style: 'margin-top:11px' }, t('奖励函数 (每步)', 'Reward function (per step)', '報酬関数 (各ステップ)')));
+      w.append(h('div', { class: 'reward-formula' }, t(rf.zh, rf.en, rf.ja)));
+      w.append(h('div', { class: 'hint' }, t(rf.nZh, rf.nEn, rf.nJa)));
     }
 
     // advanced (collapsed): load a custom .onnx policy by file or URL
-    const adv = h('details', { class: 'tune', style: 'margin-top:8px' }, h('summary', {}, t('高级 · 加载自定义策略', 'Advanced · load custom policy')));
+    const adv = h('details', { class: 'tune', style: 'margin-top:8px' }, h('summary', {}, t('高级 · 加载自定义策略', 'Advanced · load custom policy', '詳細設定 · カスタム方策の読み込み')));
     const file = h('input', { type: 'file', accept: '.onnx',
       onchange: (e) => { const f = e.target.files[0]; if (f) f.arrayBuffer().then((b) => bus.send({ type: 'set_rl_policy', src: new Uint8Array(b) })); } });
-    const url = h('input', { type: 'text', placeholder: t('models/policy.onnx 或 URL', 'models/policy.onnx or URL') });
-    adv.append(h('label', { class: 'rl-load' }, h('span', {}, t('文件', 'File')), file),
-               h('div', { class: 'dist-param' }, url, h('button', { class: 'mini', onclick: () => { if (url.value) bus.send({ type: 'set_rl_policy', src: url.value }); } }, t('加载 URL', 'Load URL'))));
+    const url = h('input', { type: 'text', placeholder: t('models/policy.onnx 或 URL', 'models/policy.onnx or URL', 'models/policy.onnx または URL') });
+    adv.append(h('label', { class: 'rl-load' }, h('span', {}, t('文件', 'File', 'ファイル')), file),
+               h('div', { class: 'dist-param' }, url, h('button', { class: 'mini', onclick: () => { if (url.value) bus.send({ type: 'set_rl_policy', src: url.value }); } }, t('加载 URL', 'Load URL', 'URL を読み込み'))));
     w.append(adv);
     return w;
   }
@@ -278,10 +279,10 @@ export function buildControls(bus, meta, catalog) {
     setMode(m) { mode = m; },
     renderControl(host, m, frame, subEl) {
       mode = m; host.innerHTML = '';
-      if (m === 'pid') { host.append(pidPanel(frame)); if (subEl) subEl.textContent = t('PID 自动', 'PID auto'); }
+      if (m === 'pid') { host.append(pidPanel(frame)); if (subEl) subEl.textContent = t('PID 自动', 'PID auto', 'PID 自動'); }
       else if (m === 'mpc') { host.append(mpcPanel(frame)); if (subEl) subEl.textContent = 'MPC'; }
-      else if (m === 'rl') { host.append(rlPanel(frame)); if (subEl) subEl.textContent = t('RL 监督', 'RL supervisory'); }
-      else { host.append(manualPanel()); if (subEl) subEl.textContent = t('手动', 'Manual'); }
+      else if (m === 'rl') { host.append(rlPanel(frame)); if (subEl) subEl.textContent = t('RL 监督', 'RL supervisory', 'RL 監督'); }
+      else { host.append(manualPanel()); if (subEl) subEl.textContent = t('手动', 'Manual', '手動'); }
       const cp = configPanel(frame); if (cp) host.append(h('div', { class: 'divider' }), cp);
     },
     syncRL(frame) {

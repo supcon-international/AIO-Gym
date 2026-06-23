@@ -1,7 +1,7 @@
 // Real-time strip charts (uPlot), driven by the active model's `trends` spec —
 // each scenario declares what to plot (levels, temps, power, concentration, …),
 // so the charts adapt automatically. Builds its own panels into a container.
-import { t } from './i18n.js?v=14';
+import { t } from './i18n.js?v=15';
 
 const WINDOW = 2200;
 export const TANK_COLORS = ['#2563EB', '#7C3AED', '#DB2777', '#0D9488', '#D97706', '#0891B2'];
@@ -38,12 +38,13 @@ export function buildCharts(host, trends, n) {
   const anySP = trends.some((tr) => (tr.spIdx || []).length);
   if (anySP) host.append(h('div', { class: 'chart-caption' },
     t('— 实线 = 测量值,虚线 = 设定点（RL 模式下为 RL 在线选定的目标） —',
-      '— solid = measured value,  dashed = setpoint (in RL mode, the target RL picks online) —')));
+      '— solid = measured value,  dashed = setpoint (in RL mode, the target RL picks online) —',
+      '— 実線 = 測定値、破線 = 設定値（RLモードではRLがオンラインで選ぶ目標） —')));
   const charts = trends.map((tr) => {
     const spIdx = tr.spIdx || [];
     let legend = '';
-    for (let i = 0; i < n; i++) legend += `<span><i style="background:${TANK_COLORS[i % TANK_COLORS.length]}"></i>${t('测', 'M') + (i + 1)}</span>`;
-    if (spIdx.length) legend += `<span><i class="sp-swatch"></i>${t('设定点', 'SP')}</span>`;
+    for (let i = 0; i < n; i++) legend += `<span><i style="background:${TANK_COLORS[i % TANK_COLORS.length]}"></i>${t('测', 'M', '測') + (i + 1)}</span>`;
+    if (spIdx.length) legend += `<span><i class="sp-swatch"></i>${t('设定点', 'SP', '設定値')}</span>`;
     const panel = h('div', { class: 'panel chart-panel' });
     panel.append(h('div', { class: 'panel-h' }, `<span>${tr.label}</span><span class="legend">${legend}</span>`));
     const chartDiv = h('div', { class: 'chart' });

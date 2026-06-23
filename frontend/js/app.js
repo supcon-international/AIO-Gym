@@ -1,11 +1,11 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=14';
-import { buildSchematic } from './schematic.js?v=14';
-import { buildCharts } from './charts.js?v=14';
-import { buildControls } from './controls.js?v=14';
-import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=14';
+import { Engine, CATALOG } from './sim/engine.js?v=15';
+import { buildSchematic } from './schematic.js?v=15';
+import { buildCharts } from './charts.js?v=15';
+import { buildControls } from './controls.js?v=15';
+import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=15';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;
@@ -18,7 +18,7 @@ const bus = { send: (m) => engine.handleCommand(m) };
 function setConn(ok) {
   const c = $('#conn'); if (!c) return;
   c.className = 'conn ' + (ok ? 'on' : 'off');
-  c.textContent = ok ? t('● 本地引擎', '● Local engine') : t('● 已停止', '● Stopped');
+  c.textContent = ok ? t('● 本地引擎', '● Local engine', '● ローカルエンジン') : t('● 已停止', '● Stopped', '● 停止しました');
 }
 
 function init() {
@@ -106,10 +106,10 @@ function wireTopbar() {
   setRunBtn();
 }
 
-const setRunBtn = () => { const b = $('#btn-run'); b.textContent = running ? t('暂停', 'Pause') : t('运行', 'Run'); b.classList.toggle('paused', !running); };
+const setRunBtn = () => { const b = $('#btn-run'); b.textContent = running ? t('暂停', 'Pause', '一時停止') : t('运行', 'Run', '実行'); b.classList.toggle('paused', !running); };
 const setLangBtn = () => {
-  const b = $('#lang-btn'); if (b) b.textContent = lang() === 'en' ? '中' : 'EN';
-  document.title = t('AIO-Gym · 过程控制环境', 'AIO-Gym · Process Control Gym');
+  const b = $('#lang-btn'); if (b) b.textContent = { zh: '中', en: 'EN', ja: '日本語' }[nextLang()];  // shows the lang you switch TO
+  document.title = t('AIO-Gym · 过程控制环境', 'AIO-Gym · Process Control Gym', 'AIO-Gym · プロセス制御ジム');
 };
 const syncModeSeg = (m) => $('#mode-seg').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
 function syncSegs(f) {
@@ -128,8 +128,8 @@ function updateTopbar(f) {
   if (fseg && f.fidelity != null) fseg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', +b.dataset.fid === (f.fidelity > 0 ? 1 : 0)));
   const c = f.state.t_cold.toFixed(1), a = f.state.t_amb.toFixed(1);
   $('#env-readout').textContent = f.scenario === 'hvac'
-    ? t(`室外 ${a}°C`, `Outdoor ${a}°C`)
-    : t(`进料 ${c}°C · 环境 ${a}°C`, `Feed ${c}°C · Amb ${a}°C`);
+    ? t(`室外 ${a}°C`, `Outdoor ${a}°C`, `屋外 ${a}°C`)
+    : t(`进料 ${c}°C · 环境 ${a}°C`, `Feed ${c}°C · Amb ${a}°C`, `フィード ${c}°C · 環境 ${a}°C`);
   $('#score-mode').textContent = f.mode.toUpperCase();
 }
 
@@ -144,8 +144,8 @@ function renderScore(sc, ep) {
   // ~1 min at 10x). Control KPI (loop regulation quality) is secondary. Economic
   // primitive is production (reactor) or power draw.
   const econKpi = ec.value === 'production'
-    ? kpi(t('产量', 'Production'), ec.production, 'mmol/s')
-    : kpi(t('能耗功率', 'Power'), k.avg_power_kw, 'kW');
+    ? kpi(t('产量', 'Production', '生産量'), ec.production, 'mmol/s')
+    : kpi(t('能耗功率', 'Power', '消費電力'), k.avg_power_kw, 'kW');
   ep = ep || { n: 1, elapsed: 0, length: 600, history: [] };
   const hist = ep.history || [];
   const last = hist[hist.length - 1];
@@ -157,17 +157,18 @@ function renderScore(sc, ep) {
     return `<i title="${s.econ}" style="height:${Math.max(6, s.econ)}%;background:${c}"></i>`;
   }).join('');
   $('#score-body').innerHTML = `
-    <div class="score-big"><span class="score-num" style="color:${ecol}">${es.toFixed(0)}</span><span class="score-unit">/ 100 ${t('经济得分', 'Economic')}</span></div>
+    <div class="score-big"><span class="score-num" style="color:${ecol}">${es.toFixed(0)}</span><span class="score-unit">/ 100 ${t('经济得分', 'Economic', '経済スコア')}</span></div>
     <div class="score-bar"><i style="width:${es}%;background:${ecol}"></i></div>
-    <div class="score-sub">${t('回合', 'Episode')} #${ep.n} · ${ep.elapsed}/${ep.length}s${last ? ` · ${t('上回合', 'last')} <b>${last.econ}</b>` : ''}${avg != null ? ` · ${t('近' + recent.length + '回合均', 'avg' + recent.length)} <b>${avg}</b>` : ''}</div>
+    <div class="score-sub">${t('回合', 'Episode', 'エピソード')} #${ep.n} · ${ep.elapsed}/${ep.length}s${last ? ` · ${t('上回合', 'last', '前回')} <b>${last.econ}</b>` : ''}${avg != null ? ` · ${t('近' + recent.length + '回合均', 'avg' + recent.length, '直近' + recent.length + '回平均')} <b>${avg}</b>` : ''}</div>
     ${spark ? `<div class="ep-spark">${spark}</div>` : ''}
-    <div class="score-sub">${t('收益率', 'Profit')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step')} · ${t('控制 KPI', 'Control KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
+    <div class="score-sub">${t('收益率', 'Profit', '収益率')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step', 'ステップ')} · ${t('控制 KPI', 'Control KPI', '制御 KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
     <div class="kpi-grid">
-      ${econKpi}${kpi(t('累计能耗', 'Energy'), k.energy_kwh, 'kWh')}
-      ${kpi(t('联锁时长', 'Interlock'), k.interlock_seconds, 's')}${kpi(t('跳闸次数', 'Trips'), k.trip_events, t('次', '×'))}
+      ${econKpi}${kpi(t('累计能耗', 'Energy', '累積エネルギー'), k.energy_kwh, 'kWh')}
+      ${kpi(t('联锁时长', 'Interlock', 'インターロック時間'), k.interlock_seconds, 's')}${kpi(t('跳闸次数', 'Trips', 'トリップ回数'), k.trip_events, t('次', '×', '回'))}
     </div>
     <div class="hint" style="margin-top:9px">${t('每回合 = 600s 仿真(10×约 1 分钟);经济得分 = 本回合平均「价值−能耗」实现度。',
-      'Each episode = 600 s sim (~1 min at 10x); economic score = the episode-average value−energy realization.')}</div>`;
+      'Each episode = 600 s sim (~1 min at 10x); economic score = the episode-average value−energy realization.',
+      '1エピソード = 600s シミュレーション（10×で約1分）；経済スコア = 本エピソード平均の「価値−エネルギー」達成度。')}</div>`;
 }
 const kpi = (k, v, u) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}<small> ${u}</small></div></div>`;
 
@@ -175,13 +176,13 @@ const kpi = (k, v, u) => `<div class="kpi"><div class="k">${k}</div><div class="
 // Pop a transient notification when a disturbance/fault fires, so it's legible.
 let _prevDisturb = {};
 const DTOAST = {
-  cold_inlet: (p) => t(`冷进料温度 +${(+p.value).toFixed(1)}°C`, `Cold inlet +${(+p.value).toFixed(1)}°C`),
-  ambient: (p) => t(`环境温度 ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`, `Ambient ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`),
-  demand_surge: () => t('下游需求激增', 'Downstream demand surge'),
-  sensor_noise: () => t('传感器噪声注入', 'Sensor noise injected'),
-  heater_fault: (p) => t(`加热器 ${(p.index | 0) + 1} 失效（卡关）`, `Heater ${(p.index | 0) + 1} dead (stuck off)`),
-  valve_stuck: (p) => t(`阀 ${(p.index | 0) + 1} 卡死`, `Valve ${(p.index | 0) + 1} stuck`),
-  pump_trip: () => t('泵跳闸 · 无进料', 'Pump trip · no inflow'),
+  cold_inlet: (p) => t(`冷进料温度 +${(+p.value).toFixed(1)}°C`, `Cold inlet +${(+p.value).toFixed(1)}°C`, `冷フィード温度 +${(+p.value).toFixed(1)}°C`),
+  ambient: (p) => t(`环境温度 ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`, `Ambient ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`, `環境温度 ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`),
+  demand_surge: () => t('下游需求激增', 'Downstream demand surge', '下流需要の急増'),
+  sensor_noise: () => t('传感器噪声注入', 'Sensor noise injected', 'センサーノイズ注入'),
+  heater_fault: (p) => t(`加热器 ${(p.index | 0) + 1} 失效（卡关）`, `Heater ${(p.index | 0) + 1} dead (stuck off)`, `ヒーター ${(p.index | 0) + 1} 故障（オフ固着）`),
+  valve_stuck: (p) => t(`阀 ${(p.index | 0) + 1} 卡死`, `Valve ${(p.index | 0) + 1} stuck`, `バルブ ${(p.index | 0) + 1} 固着`),
+  pump_trip: () => t('泵跳闸 · 无进料', 'Pump trip · no inflow', 'ポンプトリップ · 進料なし'),
 };
 function notifyDisturb(dist) {
   for (const k in dist) {
@@ -196,7 +197,7 @@ function showToast(msg, isFault) {
   const host = $('#toast-host'); if (!host) return;
   const el = document.createElement('div');
   el.className = 'toast' + (isFault ? ' fault' : '');
-  const tag = isFault ? t('故障', 'Fault') : t('扰动', 'Disturbance');
+  const tag = isFault ? t('故障', 'Fault', '故障') : t('扰动', 'Disturbance', '外乱');
   el.innerHTML = `<span class="tdot"></span><span><b>${tag}</b> · ${msg}</span>`;
   host.appendChild(el);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 3600);
@@ -208,12 +209,12 @@ function showToast(msg, isFault) {
 function alarmText(a) {
   const u = a.tank >= 0 ? a.tank + 1 : '';
   switch (a.type) {
-    case 'level_high': return t(`T-${u} 液位偏高 (${a.value.toFixed(2)} m)`, `Tank ${u} level HIGH (${a.value.toFixed(2)} m)`);
-    case 'level_low': return t(`T-${u} 液位偏低 (${a.value.toFixed(2)} m)`, `Tank ${u} level LOW (${a.value.toFixed(2)} m)`);
-    case 'temp_high': return t(`机组 ${u} 温度偏高 (${a.value.toFixed(1)} °C)`, `Unit ${u} temperature HIGH (${a.value.toFixed(1)} °C)`);
-    case 'heater_interlock': return t(`机组 ${u} 加热器联锁跳闸`, `Unit ${u} heater TRIPPED`);
-    case 'pump_interlock': return t('泵联锁跳闸(溢流保护)', 'Pump TRIPPED (overflow protection)');
-    case 'overtemp_interlock': return t('进料联锁跳闸(超温/失控保护)', 'Feed TRIPPED (over-temp / runaway protection)');
+    case 'level_high': return t(`T-${u} 液位偏高 (${a.value.toFixed(2)} m)`, `Tank ${u} level HIGH (${a.value.toFixed(2)} m)`, `T-${u} 液位高め (${a.value.toFixed(2)} m)`);
+    case 'level_low': return t(`T-${u} 液位偏低 (${a.value.toFixed(2)} m)`, `Tank ${u} level LOW (${a.value.toFixed(2)} m)`, `T-${u} 液位低め (${a.value.toFixed(2)} m)`);
+    case 'temp_high': return t(`机组 ${u} 温度偏高 (${a.value.toFixed(1)} °C)`, `Unit ${u} temperature HIGH (${a.value.toFixed(1)} °C)`, `ユニット ${u} 温度高め (${a.value.toFixed(1)} °C)`);
+    case 'heater_interlock': return t(`机组 ${u} 加热器联锁跳闸`, `Unit ${u} heater TRIPPED`, `ユニット ${u} ヒーターがトリップ`);
+    case 'pump_interlock': return t('泵联锁跳闸(溢流保护)', 'Pump TRIPPED (overflow protection)', 'ポンプがトリップ（オーバーフロー保護）');
+    case 'overtemp_interlock': return t('进料联锁跳闸(超温/失控保护)', 'Feed TRIPPED (over-temp / runaway protection)', 'フィードがトリップ（過温/暴走保護）');
     default: return a.message;
   }
 }
@@ -223,7 +224,7 @@ function renderAlarms(alarms, interlocks) {
   const badge = $('#alarm-count');
   badge.textContent = alarms.length;
   badge.className = 'badge ' + (crit ? 'crit' : alarms.length ? 'warn' : '');
-  if (!alarms.length) { body.innerHTML = `<div class="no-alarm">${t('— 无报警 · 系统正常 —', '— No alarms · all normal —')}</div>`; return; }
+  if (!alarms.length) { body.innerHTML = `<div class="no-alarm">${t('— 无报警 · 系统正常 —', '— No alarms · all normal —', '— アラームなし · システム正常 —')}</div>`; return; }
   alarms.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
   body.innerHTML = alarms.map((a) => `<div class="alarm ${a.severity}"><span class="dot"></span><span>${alarmText(a)}</span></div>`).join('');
 }

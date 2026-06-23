@@ -2,7 +2,7 @@
 // cascade, or the Johansson quadruple-tank (2 lower + 2 upper, crossed pump
 // feeds). Both bind tank water height/colour, heater glow, pump and pipe-flow
 // animation to live telemetry.
-import { t as L } from './i18n.js?v=14';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=15';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {
@@ -129,7 +129,7 @@ function buildCascade(host, meta) {
   const refs = { tanks: [], pipes: [] };
 
   const pumpX = 92, pumpY = bottomY - 24;
-  svg.appendChild(el('text', { x: 18, y: pumpY - 28, fill: '#585C62', 'font-size': 12 }, txt(L('冷水进料', 'Cold feed'))));
+  svg.appendChild(el('text', { x: 18, y: pumpY - 28, fill: '#585C62', 'font-size': 12 }, txt(L('冷水进料', 'Cold feed', '冷フィード'))));
   refs.coldT = el('text', { x: 18, y: pumpY - 13, fill: '#2563EB', 'font-size': 13, 'font-family': 'IBM Plex Mono, monospace' }, txt('15°C'));
   svg.appendChild(refs.coldT);
   refs.feedFlow = flowPipe(svg, `M${pumpX + 16},${pumpY} H${tankX(0) - 26} V${innerY + 6} H${tankX(0) + 10}`);
@@ -144,7 +144,7 @@ function buildCascade(host, meta) {
     const lowY = bottomY - 10, vx = x + TW + (GAP - TW) / 2;
     let d;
     if (i < n - 1) d = `M${x + TW},${lowY} H${vx} V${innerY + 6} H${tankX(i + 1) + 6}`;
-    else { const dy = bottomY + 44; d = `M${x + TW},${lowY} H${vx} V${dy} H${vx + 60}`; svg.appendChild(el('text', { x: vx + 68, y: dy + 4, fill: '#585C62', 'font-size': 11 }, txt(L('排放', 'Drain')))); }
+    else { const dy = bottomY + 44; d = `M${x + TW},${lowY} H${vx} V${dy} H${vx + 60}`; svg.appendChild(el('text', { x: vx + 68, y: dy + 4, fill: '#585C62', 'font-size': 11 }, txt(L('排放', 'Drain', '排出')))); }
     refs.pipes.push(flowPipe(svg, d));
     const valG = el('g', { transform: `translate(${vx},${lowY})` });
     const bow = el('path', { d: 'M-10,-8 L0,0 L-10,8 Z M10,-8 L0,0 L10,8 Z', fill: '#CDCED0', stroke: '#B0B4B9', 'stroke-width': 1 });
@@ -199,7 +199,7 @@ function buildQuadruple(host, meta) {
 
   // reading guide
   svg.appendChild(el('text', { x: W / 2, y: 16, fill: '#585C62', 'font-size': 10.5, 'text-anchor': 'middle' },
-    txt(L('泵按 γ 分流：直连本侧下罐，斜穿到对侧上罐 → 交叉耦合', 'Each pump splits by γ: straight to the near lower tank, crossed to the far upper tank → cross-coupling'))));
+    txt(L('泵按 γ 分流：直连本侧下罐，斜穿到对侧上罐 → 交叉耦合', 'Each pump splits by γ: straight to the near lower tank, crossed to the far upper tank → cross-coupling', '各ポンプは γ で分流：同じ側の下部タンクへ直結、対角に対側の上部タンクへ → 交差結合'))));
 
   // --- pipes (behind tanks) ---
   // pump risers
@@ -228,10 +228,10 @@ function buildQuadruple(host, meta) {
     const g = el('g'); svg.appendChild(g);
     refs.tanks.push(tankCell(g, pos[i][0], pos[i][1], TW, TH, meta.tank_labels[i]));
   }
-  [cL, cR].forEach((cx) => svg.appendChild(el('text', { x: cx, y: yUp - 22, fill: '#8A9099', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('预热 · 进料', 'Preheat / feed')))));
-  [cL, cR].forEach((cx) => svg.appendChild(el('text', { x: cx, y: loBot + 16, fill: '#585C62', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('受控液位', 'Controlled level')))));
-  svg.appendChild(el('text', { x: colL - 50, y: loBot + 20, fill: '#8A9099', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('出料', 'Out'))));
-  svg.appendChild(el('text', { x: colR + TW + 50, y: loBot + 20, fill: '#8A9099', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('出料', 'Out'))));
+  [cL, cR].forEach((cx) => svg.appendChild(el('text', { x: cx, y: yUp - 22, fill: '#8A9099', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('预热 · 进料', 'Preheat / feed', '予熱 · 供給')))));
+  [cL, cR].forEach((cx) => svg.appendChild(el('text', { x: cx, y: loBot + 16, fill: '#585C62', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('受控液位', 'Controlled level', '制御液位')))));
+  svg.appendChild(el('text', { x: colL - 50, y: loBot + 20, fill: '#8A9099', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('出料', 'Out', '産出'))));
+  svg.appendChild(el('text', { x: colR + TW + 50, y: loBot + 20, fill: '#8A9099', 'font-size': 9.5, 'text-anchor': 'middle' }, txt(L('出料', 'Out', '産出'))));
 
   // --- pumps + split valves ---
   const splitValve = (x, color) => svg.appendChild(el('path', { d: `M${x},${Sy - 6} L${x + 6},${Sy} L${x},${Sy + 6} L${x - 6},${Sy} Z`, fill: color, stroke: '#fff', 'stroke-width': 1.2 }));
@@ -244,7 +244,7 @@ function buildQuadruple(host, meta) {
     svg.appendChild(el('rect', { x, y: H - 30, width: 11, height: 11, rx: 2, fill: color }));
     svg.appendChild(el('text', { x: x + 16, y: H - 21, fill: '#585C62', 'font-size': 10 }, txt(label)));
   };
-  legend(150, C1, L('泵1 回路', 'Pump-1')); legend(250, C2, L('泵2 回路', 'Pump-2')); legend(350, CG, L('重力 / 出料', 'Gravity / out'));
+  legend(150, C1, L('泵1 回路', 'Pump-1', 'ポンプ1 回路')); legend(250, C2, L('泵2 回路', 'Pump-2', 'ポンプ2 回路')); legend(350, CG, L('重力 / 出料', 'Gravity / out', '重力 / 産出'));
   refs.phase = el('text', { x: W / 2, y: H - 6, fill: '#585C62', 'font-size': 11, 'text-anchor': 'middle', 'font-weight': 600 }, txt(''));
   svg.appendChild(refs.phase);
   host.appendChild(svg);
@@ -280,7 +280,7 @@ function buildQuadruple(host, meta) {
       setFlow(refs.pipes.d31, s.tank_outflow[2], Qmax); setFlow(refs.pipes.d42, s.tank_outflow[3], Qmax);
       setFlow(refs.pipes.o1, s.tank_outflow[0], Qmax); setFlow(refs.pipes.o2, s.tank_outflow[1], Qmax);
       refs.phase.textContent = cfg.phase
-        ? `γ₁=${g1.toFixed(2)}  γ₂=${g2.toFixed(2)}  ·  ${L('传输零点', 'Zero')}: ${cfg.phase}`
+        ? `γ₁=${g1.toFixed(2)}  γ₂=${g2.toFixed(2)}  ·  ${L('传输零点', 'Zero', '伝送零点')}: ${cfg.phase}`
         : '';
     },
   };
@@ -293,21 +293,21 @@ function buildCSTR(host, meta) {
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
   svg.appendChild(el('text', { x: W / 2, y: 18, fill: '#585C62', 'font-size': 10.5, 'text-anchor': 'middle' },
-    txt(L('放热反应靠冷却控温;冷却不足 → Arrhenius 正反馈 → 热失控', 'Exothermic reaction held by cooling; too little → Arrhenius runaway'))));
+    txt(L('放热反应靠冷却控温;冷却不足 → Arrhenius 正反馈 → 热失控', 'Exothermic reaction held by cooling; too little → Arrhenius runaway', '放熱反応は冷却で制御;冷却不足 → アレニウス正帰還 → 熱暴走'))));
 
   const rx = 280, ry = 86, rw = 180, rh = 214, cx = rx + rw / 2, rbot = ry + rh;
   // feed (top) + product (bottom) pipes
   const feed = flowPipe(svg, `M120,150 V${ry - 14} H${cx} V${ry}`, '#2563EB');
   const prod = flowPipe(svg, `M${cx},${rbot} V${rbot + 26} H${rx + rw + 70}`, '#5B8DEF');
-  svg.appendChild(el('text', { x: 120, y: 138, fill: '#585C62', 'font-size': 11, 'text-anchor': 'middle' }, txt(L('进料', 'Feed'))));
+  svg.appendChild(el('text', { x: 120, y: 138, fill: '#585C62', 'font-size': 11, 'text-anchor': 'middle' }, txt(L('进料', 'Feed', '供給'))));
   const feedPump = pumpSymbol(svg, 120, 150, meta.actuators.pumps[0]);
-  svg.appendChild(el('text', { x: rx + rw + 78, y: rbot + 30, fill: '#585C62', 'font-size': 11 }, txt(L('产品', 'Product'))));
+  svg.appendChild(el('text', { x: rx + rw + 78, y: rbot + 30, fill: '#585C62', 'font-size': 11 }, txt(L('产品', 'Product', '製品'))));
   // cooling jacket (outer shell, glows when cooling) + coolant arrows
   const jacket = el('rect', { x: rx - 12, y: ry - 8, width: rw + 24, height: rh + 16, rx: 14, fill: 'none', stroke: '#9AD3DA', 'stroke-width': 6 });
   svg.appendChild(jacket);
   const coolIn = flowPipe(svg, `M${rx - 70},${ry + 30} H${rx - 12}`, '#0EA5C0');
   const coolOut = flowPipe(svg, `M${rx - 12},${rbot - 30} H${rx - 70}`, '#0EA5C0');
-  svg.appendChild(el('text', { x: rx - 78, y: ry + 22, fill: '#0E8aa0', 'font-size': 10 }, txt(L('冷却水', 'Coolant'))));
+  svg.appendChild(el('text', { x: rx - 78, y: ry + 22, fill: '#0E8aa0', 'font-size': 10 }, txt(L('冷却水', 'Coolant', '冷却水'))));
   // reactor liquid (full, temperature-coloured) + glass
   const liquid = el('rect', { x: rx + 3, y: ry + 3, width: rw - 6, height: rh - 6, rx: 8, fill: '#9CC2F0', opacity: 0.62 });
   svg.appendChild(liquid);
@@ -347,7 +347,7 @@ function buildHVAC(host, meta) {
   const W = 720, H = 380;
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
-  const outdoorT = el('text', { x: W / 2, y: 24, fill: '#585C62', 'font-size': 12, 'text-anchor': 'middle' }, txt(L('室外', 'Outdoor') + ' --'));
+  const outdoorT = el('text', { x: W / 2, y: 24, fill: '#585C62', 'font-size': 12, 'text-anchor': 'middle' }, txt(L('室外', 'Outdoor', '室外') + ' --'));
   svg.appendChild(outdoorT);
   const rooms = [];
   const RW = 220, RH = 180, RY = 110, xs = [110, 110 + RW + 60];
@@ -371,13 +371,13 @@ function buildHVAC(host, meta) {
   // inter-zone coupling
   const couple = el('line', { x1: xs[0] + RW, y1: RY + RH / 2, x2: xs[1], y2: RY + RH / 2, stroke: '#C77700', 'stroke-width': 2, 'stroke-dasharray': '5 4' });
   svg.appendChild(couple);
-  svg.appendChild(el('text', { x: (xs[0] + RW + xs[1]) / 2, y: RY + RH / 2 - 8, fill: '#C77700', 'font-size': 10, 'text-anchor': 'middle' }, txt(L('热耦合', 'Coupling'))));
+  svg.appendChild(el('text', { x: (xs[0] + RW + xs[1]) / 2, y: RY + RH / 2 - 8, fill: '#C77700', 'font-size': 10, 'text-anchor': 'middle' }, txt(L('热耦合', 'Coupling', '熱結合'))));
   host.appendChild(svg);
 
   return {
     update(f) {
       const s = f.state, act = f.actuators;
-      outdoorT.textContent = `${L('室外', 'Outdoor')} ${s.t_amb.toFixed(1)}°C`;
+      outdoorT.textContent = `${L('室外', 'Outdoor', '室外')} ${s.t_amb.toFixed(1)}°C`;
       for (let i = 0; i < 2; i++) {
         const r = rooms[i], T = s.temps[i], u = act.heaters[i];
         r.fill.setAttribute('fill', tempColor(T));
