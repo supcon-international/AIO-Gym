@@ -2,14 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=9';
-import { Integrator } from './kernel.js?v=9';
-import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=9';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=9';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=9';
-import { ScoreKeeper } from './scoring.js?v=9';
-import { Realism } from './realism.js?v=9';
-import { MPCController } from './mpc.js?v=9';
+import { makeModel } from './models.js?v=10';
+import { Integrator } from './kernel.js?v=10';
+import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=10';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=10';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=10';
+import { ScoreKeeper } from './scoring.js?v=10';
+import { Realism } from './realism.js?v=10';
+import { MPCController } from './mpc.js?v=10';
 
 const TICK = 0.05;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -36,7 +36,7 @@ export class Engine {
     this.meas = null;                          // latest measured state (what controllers/RL see)
     this._initSetpoints();
     this.running = true; this.speed = 1; this.simT = 0;
-    this.autoEvents = false; this._evClock = 0; this._evNext = 12;
+    this.autoEvents = true; this._evClock = 0; this._evNext = 12;   // realistic by default: ongoing disturbances
     const [nP, nV, nH] = this.model.actuatorCounts();
     this.lastAct = { pumps: new Array(nP).fill(0), valves: new Array(nV).fill(0), heaters: new Array(nH).fill(0) };
     this.state = this.integ.getState(this.lastAct, this.disturb.environment(), 0);
@@ -103,7 +103,12 @@ export class Engine {
     if (Math.random() < 0.3) return;                             // sometimes a quiet period
     const hasValves = this.model.actuatorCounts()[1] > 0;
     const keys = Object.keys(CATALOG).filter((k) => !(CATALOG[k].needs === 'valves' && !hasValves));
-    const k = keys[Math.floor(Math.random() * keys.length)];
+    // default-on auto-events lean toward process disturbances; hard equipment faults
+    // (pump trip / heater dead / valve stuck) are rarer so the plant isn't constantly broken.
+    const faults = keys.filter((kk) => CATALOG[kk].kind === 'fault');
+    const proc = keys.filter((kk) => CATALOG[kk].kind !== 'fault');
+    const pool = (Math.random() < 0.78 || !faults.length) ? (proc.length ? proc : keys) : faults;
+    const k = pool[Math.floor(Math.random() * pool.length)];
     const params = { ...CATALOG[k].default };
     if ('value' in params) params.value = +(params.value * (0.6 + Math.random() * 0.9)).toFixed(4);
     if ('index' in params) params.index = Math.floor(Math.random() * this.n);

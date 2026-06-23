@@ -56,7 +56,7 @@
       <span id="speed-val" class="mono">1.0×</span>
     </div>
 
-    <div class="ctl-group" title="仪表与执行机构实感:真实=带噪声/迟延/滞后/黏滞 · Instrument & actuator realism">
+    <div class="ctl-group" title="仪表与执行机构实感:理想=完美测量与执行;真实=带噪声/迟延/滞后/黏滞 · Instrument & actuator realism (ideal = perfect; real = noise/deadtime/lag/stiction)">
       <span class="ctl-lbl" data-zh="实感" data-en="Realism">实感</span>
       <div class="seg sm" id="fidelity-seg">
         <button data-fid="0" data-zh="理想" data-en="Ideal">理想</button>
@@ -83,7 +83,7 @@
       </div>
       <div class="panel" id="disturb-panel">
         <div class="panel-h"><span data-zh="扰动 / 故障" data-en="Disturbance / Fault">扰动 / 故障</span>
-          <label class="auto-ev"><input type="checkbox" id="auto-events" /> <span data-zh="自动" data-en="Auto">自动</span></label>
+          <label class="auto-ev" title="周期性随机扰动/故障(冷进料阶跃、需求激增、设备故障)· periodic random disturbances"><input type="checkbox" id="auto-events" checked /> <span data-zh="自动" data-en="Auto">自动</span></label>
         </div>
         <div class="panel-b" id="disturb-body"></div>
       </div>
@@ -114,6 +114,6 @@
   </main>
 
   <script src="./vendor/uPlot.iife.min.js"></script>
-  <script type="module" src="./js/app.js?v=9"></script>
+  <script type="module" src="./js/app.js?v=10"></script>
 </body>
 </html>
