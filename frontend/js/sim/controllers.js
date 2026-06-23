@@ -2,7 +2,7 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
-import { t } from '../i18n.js?v=10';
+import { t } from '../i18n.js?v=14';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);

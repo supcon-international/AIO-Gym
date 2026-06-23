@@ -1,12 +1,11 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=10';
-import { buildSchematic } from './schematic.js?v=10';
-import { buildCharts } from './charts.js?v=10';
-import { buildControls } from './controls.js?v=10';
-import { MqttBridge } from './mqtt.js?v=10';
-import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=10';
+import { Engine, CATALOG } from './sim/engine.js?v=14';
+import { buildSchematic } from './schematic.js?v=14';
+import { buildCharts } from './charts.js?v=14';
+import { buildControls } from './controls.js?v=14';
+import { t, applyStatic, toggleLang, lang, onLang } from './i18n.js?v=14';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;
@@ -15,7 +14,6 @@ let scenario = null, mode = 'manual', running = true, lastFrame = null, pendingH
 // Local engine; `bus.send` forwards commands to it (keeps controls.js unchanged).
 const engine = new Engine();
 const bus = { send: (m) => engine.handleCommand(m) };
-const mqtt = new MqttBridge(engine);
 
 function setConn(ok) {
   const c = $('#conn'); if (!c) return;
@@ -26,7 +24,6 @@ function setConn(ok) {
 function init() {
   catalog = { disturbances: CATALOG, n_tanks: 3 };
   wireTopbar();
-  renderMqtt();
   applyStatic();            // reflect the saved language on the static topbar/panels
   setLangBtn();
   onLang(relayout);         // re-render everything when the language changes
@@ -40,7 +37,6 @@ function init() {
 function relayout() {
   setLangBtn();
   setRunBtn();                                  // run button text is language-dependent
-  renderMqtt();
   scenario = null;                              // force rebuildUI with fresh meta
   onFrame(engine.telemetry());
 }
@@ -70,11 +66,10 @@ function onFrame(f) {
   controls.syncConfig(f);
   controls.syncRL(f);
   controls.syncDisturb($('#disturb-body'), f.disturbances || {});
-  renderScore(f.score);
+  notifyDisturb(f.disturbances || {});
+  renderScore(f.score, f.episode);
   renderAlarms(f.alarms, f.interlocks);
   updateTopbar(f);
-  mqtt.publish(f);
-  syncMqtt();
  } catch (e) { console.error('onFrame error:', e && e.stack || e); }
 }
 
@@ -111,27 +106,6 @@ function wireTopbar() {
   setRunBtn();
 }
 
-// ---------------- MQTT / UNS panel ----------------
-function renderMqtt() {
-  const host = $('#mqtt-body'); if (!host) return;
-  host.innerHTML = `
-    <div class="mqtt-row"><input id="mqtt-url" type="text" value="wss://broker.emqx.io:8084/mqtt" placeholder="ws(s)://broker:port/mqtt"></div>
-    <div class="mqtt-row"><input id="mqtt-line" type="text" value="env-1" placeholder="line id"><button id="mqtt-btn" class="btn-secondary mqtt-go"></button></div>
-    <div class="mqtt-base mono" id="mqtt-base"></div>
-    <div class="hint">${t('外部 agent 经 MQTT 读 <code>obs</code>/<code>reward</code>、写 <code>action</code> 即接管控制。', 'External agents read <code>obs</code>/<code>reward</code> and write <code>action</code> over MQTT to take control.')}</div>`;
-  $('#mqtt-btn').addEventListener('click', async () => {
-    if (mqtt.connected) { mqtt.disconnect(); }
-    else { $('#mqtt-btn').textContent = t('连接中…', 'Connecting…'); await mqtt.connect($('#mqtt-url').value.trim(), $('#mqtt-line').value); }
-    syncMqtt();
-  });
-  syncMqtt();
-}
-function syncMqtt() {
-  const st = mqtt.getStatus();
-  const tag = $('#mqtt-status'); if (tag) { tag.textContent = st.connected ? t('已连接', 'Connected') : t('未连接', 'Offline'); tag.className = 'tag' + (st.connected ? ' on' : ''); }
-  const b = $('#mqtt-base'); if (b) b.textContent = st.base;
-  const btn = $('#mqtt-btn'); if (btn) btn.textContent = st.connected ? t('断开', 'Disconnect') : t('连接', 'Connect');
-}
 const setRunBtn = () => { const b = $('#btn-run'); b.textContent = running ? t('暂停', 'Pause') : t('运行', 'Run'); b.classList.toggle('paused', !running); };
 const setLangBtn = () => {
   const b = $('#lang-btn'); if (b) b.textContent = lang() === 'en' ? '中' : 'EN';
@@ -160,34 +134,77 @@ function updateTopbar(f) {
 }
 
 // ---------------- score ----------------
-function renderScore(sc) {
+function renderScore(sc, ep) {
   if (!sc) return;
   const k = sc.kpis, ec = sc.econ || {};
   const es = sc.econ_score ?? 0;
   const ecol = es >= 80 ? '#2E8B3D' : es >= 55 ? '#C77700' : '#C0392B';
   const tcol = sc.score >= 80 ? '#2E8B3D' : sc.score >= 55 ? '#C77700' : '#C0392B';
-  // The objective is ECONOMIC: maximize value − energy-cost while staying in the soft
-  // safety/quality bands. Economic score is the headline; control KPI (loop regulation
-  // quality) is secondary. The economic primitive is production (reactor) or power draw.
+  // Economic score is the headline = the PER-EPISODE AVERAGE (one episode = 600 s sim,
+  // ~1 min at 10x). Control KPI (loop regulation quality) is secondary. Economic
+  // primitive is production (reactor) or power draw.
   const econKpi = ec.value === 'production'
     ? kpi(t('产量', 'Production'), ec.production, 'mmol/s')
     : kpi(t('能耗功率', 'Power'), k.avg_power_kw, 'kW');
+  ep = ep || { n: 1, elapsed: 0, length: 600, history: [] };
+  const hist = ep.history || [];
+  const last = hist[hist.length - 1];
+  const recent = hist.slice(-5);
+  const avg = recent.length ? Math.round(recent.reduce((a, b) => a + b.econ, 0) / recent.length) : null;
+  // sparkline of recent episode economic scores
+  const spark = hist.slice(-12).map((s) => {
+    const c = s.econ >= 80 ? '#2E8B3D' : s.econ >= 55 ? '#C77700' : '#C0392B';
+    return `<i title="${s.econ}" style="height:${Math.max(6, s.econ)}%;background:${c}"></i>`;
+  }).join('');
   $('#score-body').innerHTML = `
     <div class="score-big"><span class="score-num" style="color:${ecol}">${es.toFixed(0)}</span><span class="score-unit">/ 100 ${t('经济得分', 'Economic')}</span></div>
     <div class="score-bar"><i style="width:${es}%;background:${ecol}"></i></div>
-    <div class="score-sub">${t('收益率', 'Profit rate')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step')} · ${t('控制 KPI', 'Control KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
+    <div class="score-sub">${t('回合', 'Episode')} #${ep.n} · ${ep.elapsed}/${ep.length}s${last ? ` · ${t('上回合', 'last')} <b>${last.econ}</b>` : ''}${avg != null ? ` · ${t('近' + recent.length + '回合均', 'avg' + recent.length)} <b>${avg}</b>` : ''}</div>
+    ${spark ? `<div class="ep-spark">${spark}</div>` : ''}
+    <div class="score-sub">${t('收益率', 'Profit')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step')} · ${t('控制 KPI', 'Control KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
     <div class="kpi-grid">
       ${econKpi}${kpi(t('累计能耗', 'Energy'), k.energy_kwh, 'kWh')}
       ${kpi(t('联锁时长', 'Interlock'), k.interlock_seconds, 's')}${kpi(t('跳闸次数', 'Trips'), k.trip_events, t('次', '×'))}
     </div>
-    <div class="hint" style="margin-top:9px">${t('经济得分 = 软约束区间内「价值−能耗」的实现度；控制 KPI 反映回路调节质量。',
-      'Economic = realized value−energy within the soft safety/quality bands; Control KPI = loop regulation quality.')}</div>`;
+    <div class="hint" style="margin-top:9px">${t('每回合 = 600s 仿真(10×约 1 分钟);经济得分 = 本回合平均「价值−能耗」实现度。',
+      'Each episode = 600 s sim (~1 min at 10x); economic score = the episode-average value−energy realization.')}</div>`;
 }
 const kpi = (k, v, u) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}<small> ${u}</small></div></div>`;
 
+// ---------------- disturbance toasts ----------------
+// Pop a transient notification when a disturbance/fault fires, so it's legible.
+let _prevDisturb = {};
+const DTOAST = {
+  cold_inlet: (p) => t(`冷进料温度 +${(+p.value).toFixed(1)}°C`, `Cold inlet +${(+p.value).toFixed(1)}°C`),
+  ambient: (p) => t(`环境温度 ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`, `Ambient ${+p.value >= 0 ? '+' : ''}${(+p.value).toFixed(1)}°C`),
+  demand_surge: () => t('下游需求激增', 'Downstream demand surge'),
+  sensor_noise: () => t('传感器噪声注入', 'Sensor noise injected'),
+  heater_fault: (p) => t(`加热器 ${(p.index | 0) + 1} 失效（卡关）`, `Heater ${(p.index | 0) + 1} dead (stuck off)`),
+  valve_stuck: (p) => t(`阀 ${(p.index | 0) + 1} 卡死`, `Valve ${(p.index | 0) + 1} stuck`),
+  pump_trip: () => t('泵跳闸 · 无进料', 'Pump trip · no inflow'),
+};
+function notifyDisturb(dist) {
+  for (const k in dist) {
+    if (!(k in _prevDisturb)) {
+      const fn = DTOAST[k];
+      showToast(fn ? fn(dist[k].params || {}) : (dist[k].label || k), dist[k].kind === 'fault');
+    }
+  }
+  _prevDisturb = { ...dist };
+}
+function showToast(msg, isFault) {
+  const host = $('#toast-host'); if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'toast' + (isFault ? ' fault' : '');
+  const tag = isFault ? t('故障', 'Fault') : t('扰动', 'Disturbance');
+  el.innerHTML = `<span class="tdot"></span><span><b>${tag}</b> · ${msg}</span>`;
+  host.appendChild(el);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 3600);
+}
+
 // ---------------- alarms ----------------
 // Alarms carry a stable type + tank + value (the raw `message` stays English for
-// MQTT/logging); the UI renders a localized string from those fields.
+// logging); the UI renders a localized string from those fields.
 function alarmText(a) {
   const u = a.tank >= 0 ? a.tank + 1 : '';
   switch (a.type) {

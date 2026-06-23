@@ -169,7 +169,18 @@ details.tune summary{cursor:pointer; font-size:12px; color:var(--fx-deep-green);
 .rl-load{display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--text-2); margin-bottom:8px}
 .rl-load input[type=file]{font-size:11px; color:var(--text-2)}
 .rl-builtin{width:100%; background:var(--fx-white); border:1px solid var(--border-strong); color:var(--text); border-radius:var(--radius); padding:4px 6px; font-size:11.5px; cursor:pointer}
+.reward-formula{font-family:var(--font-mono); font-size:11.5px; color:var(--text); background:var(--bg-secondary); border:1px solid var(--border); border-left:3px solid var(--fx-deep-green); border-radius:var(--radius); padding:7px 9px; margin:4px 0 6px; line-height:1.5}
 .tag.on{background:#E6F4EA; color:var(--ok)}
+.ep-spark{display:flex; align-items:flex-end; gap:2px; height:26px; margin:2px 0 10px}
+.ep-spark>i{flex:1; min-width:3px; border-radius:1px; opacity:.85}
+.toast-host{position:fixed; top:64px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none}
+.toast{display:flex; align-items:center; gap:9px; background:var(--fx-white); border:1px solid var(--border-strong); border-left:4px solid var(--fx-deep-green); border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.14); padding:9px 14px; font-size:13px; color:var(--text); animation:toastIn .25s ease; max-width:80vw}
+.toast.fault{border-left-color:#C0392B}
+.toast .tdot{width:8px; height:8px; border-radius:50%; background:var(--fx-deep-green); flex:none}
+.toast.fault .tdot{background:#C0392B}
+.toast.out{animation:toastOut .4s ease forwards}
+@keyframes toastIn{from{opacity:0; transform:translateY(-10px)}to{opacity:1; transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0; transform:translateY(-10px)}}
 .auto-ev{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-2); cursor:pointer; font-weight:500}
 .auto-ev input{accent-color:var(--fx-deep-green)}
 .mqtt-row{display:flex; gap:6px; margin-bottom:7px}
@@ -203,6 +214,8 @@ details.tune summary{cursor:pointer; font-size:12px; color:var(--fx-deep-green);
 .legend{display:flex; gap:10px; font-size:10px}
 .legend span{display:flex; align-items:center; gap:4px; color:var(--text-2)}
 .legend i{width:9px; height:3px; border-radius:2px; display:inline-block}
+.legend i.sp-swatch{height:0; border-top:2px dashed #9aa0a6; border-radius:0}
+.chart-caption{font-size:10.5px; color:var(--text-3); text-align:center; margin:-4px 0 2px}
 .u-legend{display:none !important}
 
 /* ---------------- Score / KPI ---------------- */

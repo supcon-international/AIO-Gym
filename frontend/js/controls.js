@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=10';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=10';
+import { t } from './i18n.js?v=14';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=14';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -26,6 +26,19 @@ const DIST_LABEL = {
   heater_fault: () => t('加热器失效（卡关）', 'Heater dead (stuck off)'),
   valve_stuck: () => t('阀卡死', 'Valve stuck'),
   pump_trip: () => t('泵跳闸（无进料）', 'Pump trip (no inflow)'),
+};
+
+// The economic reward each RL policy optimizes (mirrors aiogym/env.py ECON). Per step:
+// reward = w_value·value − w_energy·energy(kW) − w_viol·soft-band-violation.
+const REWARD_FN = {
+  cstr:      { zh: 'r = 900·产量 − 0.4·冷却功率(kW) − 8·超温(T>88°C)', en: 'r = 900·prod − 0.4·cooling(kW) − 8·over(T>88°C)',
+               nZh: '最大化产量(贴 88°C 安全边界,92°C 失控);冷却为成本,越界软罚。', nEn: 'Max production hugging the 88°C safe edge (92°C runaway); cooling is cost; soft over-cap penalty.' },
+  cascade:   { zh: 'r = −0.9·加热功率(kW) − 6·欠温(罐温 < 33/46/58°C)', en: 'r = −0.9·heat(kW) − 6·under(tank T < 33/46/58°C)',
+               nZh: '达标(温度≥下限)前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec (temps ≥ lower band).' },
+  quadruple: { zh: 'r = −0.9·加热功率(kW) − 6·欠温(温度 < 46/46/32/32°C)', en: 'r = −0.9·heat(kW) − 6·under(T < 46/46/32/32°C)',
+               nZh: '达标前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec.' },
+  hvac:      { zh: 'r = −1.2·功率(kW) − 7·越界(室温 ∉ [20,24]°C)', en: 'r = −1.2·power(kW) − 7·band(T ∉ [20,24]°C)',
+               nZh: '室温维持在 20–24°C 舒适区内,最省冷/热功率。', nEn: 'Keep rooms in the 20–24°C comfort band at minimum power.' },
 };
 
 export function buildControls(bus, meta, catalog) {
@@ -242,6 +255,14 @@ export function buildControls(bus, meta, catalog) {
     const cur = BUILTIN_POLICIES.find((p) => p.scenario === scn);
     if (cur) w.append(h('div', { class: 'hint', style: 'color:var(--fx-deep-green); margin-top:6px' }, t(cur.noteZh, cur.noteEn)));
 
+    // the actual reward function the policy optimizes (per control step)
+    const rf = REWARD_FN[scn];
+    if (rf) {
+      w.append(h('div', { class: 'group-title', style: 'margin-top:11px' }, t('奖励函数 (每步)', 'Reward function (per step)')));
+      w.append(h('div', { class: 'reward-formula' }, t(rf.zh, rf.en)));
+      w.append(h('div', { class: 'hint' }, t(rf.nZh, rf.nEn)));
+    }
+
     // advanced (collapsed): load a custom .onnx policy by file or URL
     const adv = h('details', { class: 'tune', style: 'margin-top:8px' }, h('summary', {}, t('高级 · 加载自定义策略', 'Advanced · load custom policy')));
     const file = h('input', { type: 'file', accept: '.onnx',
@@ -253,15 +274,6 @@ export function buildControls(bus, meta, catalog) {
     return w;
   }
 
-  // External (MQTT) control info panel
-  function extPanel(frame) {
-    const rl = frame?.rl || {};
-    const w = h('div');
-    w.append(h('div', { class: 'group-title' }, t('外部控制 (MQTT)', 'External control (MQTT)')));
-    w.append(h('div', { class: 'hint' }, t(`动作经 MQTT 写入即自动接管。obs=${rl.obsLen ?? '?'} · act=${rl.actLen ?? '?'}`, `Actions written over MQTT take over automatically. obs=${rl.obsLen ?? '?'} · act=${rl.actLen ?? '?'}`)));
-    return w;
-  }
-
   return {
     setMode(m) { mode = m; },
     renderControl(host, m, frame, subEl) {
@@ -269,7 +281,6 @@ export function buildControls(bus, meta, catalog) {
       if (m === 'pid') { host.append(pidPanel(frame)); if (subEl) subEl.textContent = t('PID 自动', 'PID auto'); }
       else if (m === 'mpc') { host.append(mpcPanel(frame)); if (subEl) subEl.textContent = 'MPC'; }
       else if (m === 'rl') { host.append(rlPanel(frame)); if (subEl) subEl.textContent = t('RL 监督', 'RL supervisory'); }
-      else if (m === 'ext') { host.append(extPanel(frame)); if (subEl) subEl.textContent = t('外部 MQTT', 'External MQTT'); }
       else { host.append(manualPanel()); if (subEl) subEl.textContent = t('手动', 'Manual'); }
       const cp = configPanel(frame); if (cp) host.append(h('div', { class: 'divider' }), cp);
     },

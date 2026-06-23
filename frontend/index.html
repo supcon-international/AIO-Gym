@@ -46,7 +46,6 @@
         <button data-mode="pid">PID</button>
         <button data-mode="mpc" title="APC 风格多变量 MPC / APC-style MPC">MPC</button>
         <button data-mode="rl" title="RL 监督控制：RL 设定点 → PID / RL supervisory control">RL</button>
-        <button data-mode="ext" data-zh="外部" data-en="Ext">外部</button>
       </div>
     </div>
 
@@ -87,10 +86,6 @@
         </div>
         <div class="panel-b" id="disturb-body"></div>
       </div>
-      <div class="panel" id="mqtt-panel">
-        <div class="panel-h"><span data-zh="外部接口 MQTT / UNS" data-en="External · MQTT / UNS">外部接口 MQTT / UNS</span><span id="mqtt-status" class="tag">未连接</span></div>
-        <div class="panel-b" id="mqtt-body"></div>
-      </div>
     </section>
 
     <section class="col col-center">
@@ -113,7 +108,9 @@
     </section>
   </main>
 
+  <div id="toast-host" class="toast-host"></div>
+
   <script src="./vendor/uPlot.iife.min.js"></script>
-  <script type="module" src="./js/app.js?v=10"></script>
+  <script type="module" src="./js/app.js?v=14"></script>
 </body>
 </html>

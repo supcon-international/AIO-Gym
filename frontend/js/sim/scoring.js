@@ -95,8 +95,9 @@ export class ScoreKeeper {
     const sFrac = this.interlockSec / e;
     const pT = W_TEMP * avgT, pL = W_LEVEL * avgL, pE = this.scoreEnergy ? W_ENERGY * avgX : 0, pS = W_SAFETY * sFrac;
     const score = Math.max(0, Math.min(100, 100 - pT - pL - pE - pS));
-    // economic score: recent (EMA) profit-rate mapped to 0-100 against [worst-PID, best-optimum]
-    const rate = this.econEMA != null ? this.econEMA : (this.econSteps > 0 ? this.econProfit / this.econSteps : 0);
+    // economic score: per-episode AVERAGE profit-rate (the scorer is reset each episode
+    // by the engine) mapped to 0-100 against [worst-PID, best-optimum]
+    const rate = this.econSteps > 0 ? this.econProfit / this.econSteps : 0;
     const [lo, hi] = this.econRef;
     const econScore = Math.max(0, Math.min(100, 100 * (rate - lo) / (hi - lo)));
     return {

@@ -2,16 +2,17 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=10';
-import { Integrator } from './kernel.js?v=10';
-import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=10';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=10';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=10';
-import { ScoreKeeper } from './scoring.js?v=10';
-import { Realism } from './realism.js?v=10';
-import { MPCController } from './mpc.js?v=10';
+import { makeModel } from './models.js?v=14';
+import { Integrator } from './kernel.js?v=14';
+import { ManualController, PIDController, RLController, ExternalController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=14';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=14';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=14';
+import { ScoreKeeper } from './scoring.js?v=14';
+import { Realism } from './realism.js?v=14';
+import { MPCController } from './mpc.js?v=14';
 
 const TICK = 0.05;
+const EPISODE_SIM_S = 600;   // one episode = 600 s sim time (= 1 min at 10x speed)
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const clampAct = (a) => ({ pumps: a.pumps.map(clamp01), valves: a.valves.map(clamp01), heaters: a.heaters.map(clamp01) });
 const r = (v, d) => +v.toFixed(d);
@@ -37,6 +38,7 @@ export class Engine {
     this._initSetpoints();
     this.running = true; this.speed = 1; this.simT = 0;
     this.autoEvents = true; this._evClock = 0; this._evNext = 12;   // realistic by default: ongoing disturbances
+    this._epStart = 0; this._epScores = []; this._epCount = 1;      // episodic KPI (per-episode average)
     const [nP, nV, nH] = this.model.actuatorCounts();
     this.lastAct = { pumps: new Array(nP).fill(0), valves: new Array(nV).fill(0), heaters: new Array(nH).fill(0) };
     this.state = this.integ.getState(this.lastAct, this.disturb.environment(), 0);
@@ -62,6 +64,7 @@ export class Engine {
   reset() {
     this.integ.reset(this.model.initialState());
     this.alarmsMon.reset(); this.score.reset(); this.pid.reset(); this.realism.reset(); this.meas = null; this.simT = 0;
+    this._epStart = 0; this._epScores = []; this._epCount = 1;
     const [nP, nV, nH] = this.model.actuatorCounts();
     this.lastAct = { pumps: new Array(nP).fill(0), valves: new Array(nV).fill(0), heaters: new Array(nH).fill(0) };
     this.state = this.integ.getState(this.lastAct, this.disturb.environment(), 0);
@@ -134,6 +137,12 @@ export class Engine {
     this.state = this.integ.step(dt, eff, env);
     this.simT = this.state.t; this.lastAct = eff;
     this.score.update(this.state, sp, this.mask, this.alarms.length, dt, eff);
+    if (this.simT - this._epStart >= EPISODE_SIM_S) {          // close the episode, record its average score
+      const rep = this.score.report();
+      this._epScores.push({ econ: rep.econ_score, ctrl: rep.score, profit: rep.econ.profit_rate });
+      if (this._epScores.length > 30) this._epScores.shift();
+      this.score.reset(); this._epStart = this.simT; this._epCount++;
+    }
   }
 
   telemetry() {
@@ -156,6 +165,7 @@ export class Engine {
       command: this.manual.snapshot(),
       alarms: this.alarms, interlocks: { heater_trip: this.mask.heater_trip.slice(), pump_trip: this.mask.pump_trip },
       score: this.score.report(), disturbances: this.disturb.status(),
+      episode: { n: this._epCount, elapsed: r(this.simT - this._epStart, 0), length: EPISODE_SIM_S, history: this._epScores.slice(-12) },
       pid: this.pid.getConfig(), mpc: this.mpc.getConfig(), rl: this.rl.getStatus(), limits: this._limits(),
     };
   }
