@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#070D15" />
+  <title>AIO-Gym · 挑战 RL</title>
+  <link rel="stylesheet" href="./css/tier0.css" />
+  <link rel="stylesheet" href="./css/challenge.css?v=1" />
+</head>
+<body class="cd">
+  <div class="cd-app" id="cd-app">
+
+    <!-- ===== Topbar ===== -->
+    <header class="cd-top">
+      <a class="cd-back" href="./index.html" title="返回沙盘 / Back to sandbox">‹</a>
+      <div class="cd-title">
+        <span class="cd-title-main" data-zh="挑战 RL" data-en="Beat the RL" data-ja="RL に挑戦">挑战 RL</span>
+        <span class="cd-title-sub mono">exothermic CSTR</span>
+      </div>
+      <div class="cd-clock-wrap" title="剩余时间 / Time left">
+        <span class="cd-clock mono" id="cd-clock">0:00</span>
+      </div>
+      <button id="cd-lang" class="cd-lang" title="中文 / English / 日本語">EN</button>
+    </header>
+
+    <!-- ===== Scoreboard: you vs RL profit ===== -->
+    <section class="cd-board">
+      <div class="cd-score cd-you">
+        <span class="cd-score-lbl"><i class="dot"></i><span data-zh="你" data-en="You" data-ja="あなた">你</span></span>
+        <span class="cd-score-val mono" id="cd-you-profit">0</span>
+      </div>
+      <div class="cd-versus">
+        <div class="cd-bar"><i class="cd-bar-you" id="cd-bar-you"></i><i class="cd-bar-rl" id="cd-bar-rl"></i></div>
+        <span class="cd-lead mono" id="cd-lead">—</span>
+      </div>
+      <div class="cd-score cd-rl">
+        <span class="cd-score-lbl"><span data-zh="RL" data-en="RL" data-ja="RL">RL</span><i class="dot"></i></span>
+        <span class="cd-score-val mono" id="cd-rl-profit">0</span>
+      </div>
+    </section>
+
+    <!-- ===== Temperature arena (the core visual) ===== -->
+    <section class="cd-arena" id="cd-arena"></section>
+
+    <!-- ===== Mini overlaid temperature trace ===== -->
+    <section class="cd-curve" id="cd-curve"></section>
+
+    <!-- ===== Controls: bare-hands cooling + feed ===== -->
+    <section class="cd-controls">
+      <div class="cd-ctl">
+        <div class="cd-ctl-head">
+          <span class="cd-ctl-lbl"><span data-zh="冷却" data-en="Cooling" data-ja="冷却">冷却</span></span>
+          <span class="cd-ctl-val mono" id="cd-cool-val">50%</span>
+        </div>
+        <input type="range" id="cd-cool" class="cd-slider cool" min="0" max="100" step="1" value="50" />
+      </div>
+      <div class="cd-ctl">
+        <div class="cd-ctl-head">
+          <span class="cd-ctl-lbl"><span data-zh="进料" data-en="Feed" data-ja="供給">进料</span> <span class="cd-ctl-hint" data-zh="= 赚钱" data-en="= money" data-ja="= 利益">= 赚钱</span></span>
+          <span class="cd-ctl-val mono" id="cd-feed-val">50%</span>
+        </div>
+        <input type="range" id="cd-feed" class="cd-slider feed" min="0" max="100" step="1" value="50" />
+      </div>
+    </section>
+
+    <div class="cd-toast-host" id="cd-toast"></div>
+  </div>
+
+  <!-- ===== Overlay: intro / countdown / results ===== -->
+  <div class="cd-overlay" id="cd-overlay"><div class="cd-card" id="cd-card"></div></div>
+
+  <script type="module" src="./js/challenge/challenge.js?v=7"></script>
+</body>
+</html>

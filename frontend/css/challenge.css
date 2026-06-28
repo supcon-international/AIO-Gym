@@ -1,0 +1,198 @@
+/* ============ AIO-Gym · Challenge (Human vs RL) — dark, mobile-first ============ */
+/* Reuses tier0.css design tokens (fonts), but runs a dark game theme distinct from
+   the white industrial sandbox. lime = "you", blue = the RL ghost. */
+:root{
+  --cd-bg:#070D15; --cd-bg-2:#0E1722; --cd-panel:rgba(255,255,255,.04);
+  --cd-line:rgba(255,255,255,.09); --cd-line-2:rgba(255,255,255,.16);
+  --cd-text:#E7ECF1; --cd-dim:#8893A1; --cd-dim-2:#5A6573;
+  --cd-you:#B2ED1D; --cd-rl:#5B9DFF;
+  --cd-warn:#FFC23D; --cd-danger:#FF4D4D; --cd-cool:#43C6FF;
+}
+*{box-sizing:border-box}
+html,body{margin:0; height:100%}
+body.cd{
+  background:var(--cd-bg); color:var(--cd-text);
+  font-family:var(--font-sans); font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+  overscroll-behavior:none; -webkit-user-select:none; user-select:none;
+  touch-action:manipulation;
+}
+.mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums}
+
+.cd-app{
+  position:relative; width:100%; max-width:520px; margin:0 auto;
+  height:100dvh; display:flex; flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background:radial-gradient(120% 60% at 50% 0%, #0D1825 0%, var(--cd-bg) 60%);
+}
+
+/* ---------------- Topbar ---------------- */
+.cd-top{
+  flex:0 0 auto; height:52px; display:flex; align-items:center; gap:12px;
+  padding:0 14px; border-bottom:1px solid var(--cd-line);
+}
+.cd-back{
+  width:34px; height:34px; flex:0 0 34px; display:grid; place-items:center;
+  margin-left:-4px; color:var(--cd-dim); font-size:26px; line-height:1; text-decoration:none;
+  border-radius:9px; transition:.13s;
+}
+.cd-back:hover,.cd-back:active{background:var(--cd-panel); color:var(--cd-text)}
+.cd-title{display:flex; flex-direction:column; line-height:1.1; flex:1; min-width:0}
+.cd-title-main{font-size:16px; font-weight:700; letter-spacing:-.2px}
+.cd-title-sub{font-size:10.5px; color:var(--cd-dim-2)}
+.cd-clock-wrap{display:flex; align-items:center}
+.cd-clock{font-size:18px; font-weight:600; letter-spacing:.5px; color:var(--cd-text)}
+.cd-clock.warn{color:var(--cd-warn)} .cd-clock.crit{color:var(--cd-danger)}
+.cd-lang{
+  background:var(--cd-panel); border:1px solid var(--cd-line); color:var(--cd-dim);
+  border-radius:8px; padding:5px 9px; font-size:11px; font-weight:600; cursor:pointer; transition:.13s;
+}
+.cd-lang:hover{color:var(--cd-text); border-color:var(--cd-line-2)}
+
+/* ---------------- Scoreboard ---------------- */
+.cd-board{
+  flex:0 0 auto; display:grid; grid-template-columns:1fr 1.15fr 1fr; gap:8px; align-items:center;
+  padding:12px 14px 10px;
+}
+.cd-score{display:flex; flex-direction:column; gap:2px}
+.cd-score.cd-rl{align-items:flex-end}
+.cd-score-lbl{display:flex; align-items:center; gap:5px; font-size:11px; color:var(--cd-dim); font-weight:600; letter-spacing:.3px}
+.cd-score-lbl .dot{width:8px; height:8px; border-radius:50%}
+.cd-you .dot{background:var(--cd-you); box-shadow:0 0 8px var(--cd-you)}
+.cd-rl .dot{background:var(--cd-rl); box-shadow:0 0 8px var(--cd-rl)}
+.cd-score-val{font-size:26px; font-weight:700; letter-spacing:-.5px; line-height:1}
+.cd-you .cd-score-val{color:var(--cd-you)}
+.cd-rl .cd-score-val{color:var(--cd-rl)}
+.cd-versus{display:flex; flex-direction:column; align-items:center; gap:5px}
+.cd-bar{
+  position:relative; width:100%; height:7px; border-radius:4px; overflow:hidden;
+  background:rgba(255,255,255,.07); display:flex;
+}
+.cd-bar-you{height:100%; width:50%; background:linear-gradient(90deg,#7fae12,var(--cd-you)); transition:width .25s}
+.cd-bar-rl{height:100%; width:50%; background:linear-gradient(90deg,var(--cd-rl),#3b6fc4); transition:width .25s}
+.cd-lead{font-size:11px; color:var(--cd-dim); font-weight:600; white-space:nowrap}
+.cd-lead.you{color:var(--cd-you)} .cd-lead.rl{color:var(--cd-rl)}
+
+/* ---------------- Temperature arena (HTML thermometers) ---------------- */
+.cd-arena{flex:1 1 auto; min-height:0; padding:8px 16px 2px}
+.arena-stage{position:relative; height:100%}
+.arena-plot{position:absolute; left:6px; right:6px; top:12px; bottom:30px}  /* the 40–100°C mapping region */
+.arena-therms{position:absolute; inset:0; display:flex; justify-content:center; gap:clamp(40px,16vw,80px)}
+.aline{position:absolute; left:0; right:0; height:0; border-top:1.5px dashed; z-index:2}
+.aline.eco{border-color:rgba(255,194,61,.5)} .aline.trip{border-color:rgba(255,77,77,.55)}
+.aline span{position:absolute; right:0; top:-8px; font-size:9.5px; font-family:var(--font-mono); padding:1px 5px; border-radius:4px; background:var(--cd-bg-2); white-space:nowrap}
+.aline.eco span{color:var(--cd-warn)} .aline.trip span{color:var(--cd-danger)}
+.therm{position:relative; width:46px}
+.therm-track{position:absolute; inset:0; width:46px; border-radius:13px; background:rgba(255,255,255,.05); border:1px solid var(--cd-line); overflow:visible}
+.therm-fill{position:absolute; left:0; right:0; bottom:0; height:10%; border-radius:0 0 12px 12px; transition:height .12s linear, background .3s}
+.therm.you .therm-fill{background:linear-gradient(0deg,#5c7a12,var(--cd-you))}
+.therm.rl .therm-fill{background:linear-gradient(0deg,#2f5aa0,var(--cd-rl))}
+.therm-fill.hot{background:linear-gradient(0deg,#b35a18,#ff8a3d)!important}
+.therm-fill.crit{background:linear-gradient(0deg,#a31f1f,var(--cd-danger))!important; animation:cdPulse .55s infinite}
+@keyframes cdPulse{50%{filter:brightness(1.45)}}
+.therm-read{position:absolute; left:50%; transform:translateX(-50%); bottom:100%; margin-bottom:6px; font-size:13px; font-weight:700; font-family:var(--font-mono); white-space:nowrap}
+.therm.you .therm-read{color:var(--cd-you)} .therm.rl .therm-read{color:var(--cd-rl)}
+.therm-cap{position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:8px; font-size:11px; font-weight:600; color:var(--cd-dim); display:flex; align-items:center; gap:5px; white-space:nowrap}
+.therm-cap .dot{width:7px; height:7px; border-radius:50%}
+.therm.you .therm-cap .dot{background:var(--cd-you)} .therm.rl .therm-cap .dot{background:var(--cd-rl)}
+
+/* ---------------- Mini trace ---------------- */
+.cd-curve{flex:0 0 auto; height:74px; padding:2px 14px 6px}
+.cd-curve svg{width:100%; height:100%; display:block; overflow:visible}
+
+/* ---------------- Controls ---------------- */
+.cd-controls{flex:0 0 auto; padding:8px 14px calc(12px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:12px}
+.cd-ctl{display:flex; flex-direction:column; gap:7px}
+.cd-ctl-head{display:flex; align-items:baseline; justify-content:space-between}
+.cd-ctl-lbl{font-size:13px; font-weight:600; letter-spacing:.2px}
+.cd-ctl-hint{font-size:11px; color:var(--cd-dim-2); font-weight:400}
+.cd-ctl-val{font-size:15px; font-weight:700}
+.cd-ctl .cd-ctl-val{color:var(--cd-text)}
+
+/* big touch sliders */
+.cd-slider{
+  -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:8px;
+  background:rgba(255,255,255,.09); outline:none; cursor:pointer; margin:6px 0;
+  touch-action:none;
+}
+.cd-slider.cool{background:linear-gradient(90deg, rgba(67,198,255,.45), rgba(67,198,255,.10))}
+.cd-slider.feed{background:linear-gradient(90deg, rgba(178,237,29,.12), rgba(178,237,29,.5))}
+.cd-slider::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; width:30px; height:30px; border-radius:50%;
+  background:#fff; border:3px solid var(--cd-cool); box-shadow:0 2px 10px rgba(0,0,0,.5); cursor:grab;
+}
+.cd-slider.feed::-webkit-slider-thumb{border-color:var(--cd-you)}
+.cd-slider::-webkit-slider-thumb:active{cursor:grabbing; transform:scale(1.08)}
+.cd-slider::-moz-range-thumb{
+  width:30px; height:30px; border-radius:50%; background:#fff; border:3px solid var(--cd-cool);
+  box-shadow:0 2px 10px rgba(0,0,0,.5); cursor:grab;
+}
+.cd-slider.feed::-moz-range-thumb{border-color:var(--cd-you)}
+
+/* ---------------- Toasts ---------------- */
+.cd-toast-host{position:absolute; left:0; right:0; top:96px; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; z-index:20}
+.cd-toast{
+  display:flex; align-items:center; gap:8px; max-width:88%;
+  background:rgba(20,28,38,.94); border:1px solid var(--cd-line-2); border-left:3px solid var(--cd-warn);
+  color:var(--cd-text); border-radius:9px; padding:8px 13px; font-size:12.5px; font-weight:500;
+  box-shadow:0 8px 24px rgba(0,0,0,.45); animation:cdToastIn .25s ease both;
+}
+.cd-toast.fault{border-left-color:var(--cd-danger)}
+.cd-toast .tdot{width:7px; height:7px; border-radius:50%; background:var(--cd-warn); flex:0 0 auto}
+.cd-toast.fault .tdot{background:var(--cd-danger)}
+.cd-toast.out{animation:cdToastOut .3s ease both}
+@keyframes cdToastIn{from{opacity:0; transform:translateY(-12px) scale(.96)}to{opacity:1; transform:none}}
+@keyframes cdToastOut{to{opacity:0; transform:translateY(-10px)}}
+
+/* ---------------- Overlay (intro / results) ---------------- */
+.cd-overlay{
+  position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
+  padding:20px; background:rgba(4,8,14,.82); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  animation:cdFade .25s ease both;
+}
+.cd-overlay[hidden]{display:none}
+@keyframes cdFade{from{opacity:0}to{opacity:1}}
+.cd-card{
+  width:100%; max-width:440px; max-height:90dvh; overflow-y:auto;
+  background:linear-gradient(180deg,#101B28,#0B1420); border:1px solid var(--cd-line-2);
+  border-radius:18px; padding:26px 22px; box-shadow:0 24px 70px rgba(0,0,0,.6); text-align:center;
+}
+.cd-card h1{margin:0 0 6px; font-size:23px; font-weight:800; letter-spacing:-.4px}
+.cd-card h1 .em{color:var(--cd-you)}
+.cd-card .lede{margin:0 0 18px; font-size:13.5px; color:var(--cd-dim); line-height:1.55}
+.cd-rules{text-align:left; display:flex; flex-direction:column; gap:11px; margin:0 0 20px}
+.cd-rule{display:flex; gap:11px; align-items:flex-start; font-size:13px; line-height:1.45}
+.cd-rule .ri{flex:0 0 30px; width:30px; height:30px; display:grid; place-items:center; border-radius:9px; background:var(--cd-panel); border:1px solid var(--cd-line); font-size:15px}
+.cd-rule b{color:var(--cd-text); font-weight:700}
+.cd-rule .muted{color:var(--cd-dim)}
+.cd-btn{
+  width:100%; padding:15px; border-radius:12px; border:0; cursor:pointer;
+  font-family:inherit; font-size:16px; font-weight:700; letter-spacing:.3px; transition:.14s;
+}
+.cd-btn.primary{background:var(--cd-you); color:#0A1200; box-shadow:0 6px 22px rgba(178,237,29,.28)}
+.cd-btn.primary:hover{filter:brightness(1.06)} .cd-btn.primary:active{transform:translateY(1px)}
+.cd-btn.ghost{background:transparent; border:1px solid var(--cd-line-2); color:var(--cd-text); margin-top:10px; font-size:14px; padding:12px}
+.cd-btn.ghost:hover{border-color:var(--cd-dim); background:var(--cd-panel)}
+
+/* results */
+.cd-verdict{font-size:15px; font-weight:700; margin:2px 0 14px}
+.cd-verdict.win{color:var(--cd-you)} .cd-verdict.lose{color:var(--cd-rl)} .cd-verdict.trip{color:var(--cd-danger)}
+.cd-result-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 18px}
+.cd-rcell{background:var(--cd-panel); border:1px solid var(--cd-line); border-radius:12px; padding:13px 12px; text-align:left}
+.cd-rcell .rk{font-size:11px; color:var(--cd-dim); font-weight:600; display:flex; align-items:center; gap:5px}
+.cd-rcell .rk .dot{width:7px;height:7px;border-radius:50%}
+.cd-rcell.you{border-color:rgba(178,237,29,.3)} .cd-rcell.you .rk .dot{background:var(--cd-you)}
+.cd-rcell.rl{border-color:rgba(91,157,255,.3)} .cd-rcell.rl .rk .dot{background:var(--cd-rl)}
+.cd-rcell .rv{font-size:22px; font-weight:700; margin-top:3px}
+.cd-rcell.you .rv{color:var(--cd-you)} .cd-rcell.rl .rv{color:var(--cd-rl)}
+.cd-rcell .rsub{font-size:11px; color:var(--cd-dim-2); margin-top:2px}
+.cd-gap{font-size:13px; color:var(--cd-dim); margin:0 0 18px; line-height:1.5}
+.cd-gap b{font-size:15px}
+
+/* desktop niceties */
+@media (min-width:560px){
+  .cd-app{height:100dvh; max-height:920px; margin-top:max(0px, calc((100dvh - 920px)/2)); border-left:1px solid var(--cd-line); border-right:1px solid var(--cd-line)}
+}
+@media (max-height:680px){
+  .cd-score-val{font-size:22px} .cd-curve{height:56px} .cd-arena{padding-top:0}
+}
