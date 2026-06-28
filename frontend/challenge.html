@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070D15" />
   <title>AIO-Gym · 挑战 RL</title>
   <link rel="stylesheet" href="./css/tier0.css" />
-  <link rel="stylesheet" href="./css/challenge.css?v=10" />
+  <link rel="stylesheet" href="./css/challenge.css?v=11" />
 </head>
 <body class="cd">
   <div class="cd-app" id="cd-app">
@@ -16,7 +16,7 @@
       <a class="cd-back" href="./index.html" title="返回沙盘 / Back to sandbox">‹</a>
       <div class="cd-title">
         <span class="cd-title-main" data-zh="挑战 RL" data-en="Beat the RL" data-ja="RL に挑戦">挑战 RL</span>
-        <span class="cd-title-sub mono">two-zone hvac</span>
+        <span class="cd-title-sub mono" id="cd-sub">—</span>
       </div>
       <span class="cd-clock mono" id="cd-clock" title="剩余时间 / Time left">0:00</span>
       <button id="cd-lang" class="cd-lang" title="中文 / English / 日本語">EN</button>
@@ -39,28 +39,27 @@
       </div>
     </section>
 
-    <!-- ===== Plant P&ID (reused animated schematic) ===== -->
-    <section class="cd-arena" id="cd-arena"></section>
+    <!-- ===== Plant P&ID — two views: you | RL, same plant, side by side ===== -->
+    <section class="cd-arena">
+      <div class="cd-view">
+        <span class="cd-view-tag you"><i class="dot"></i><span data-zh="你" data-en="You" data-ja="あなた">你</span></span>
+        <div class="cd-sch" id="cd-arena-you"></div>
+      </div>
+      <div class="cd-view">
+        <span class="cd-view-tag rl"><i class="dot"></i>RL</span>
+        <div class="cd-sch" id="cd-arena-rl"></div>
+      </div>
+    </section>
 
-    <!-- ===== Energy / comfort compare ===== -->
+    <!-- ===== Compare strip (generic: kWh/rate + on-spec/temp) ===== -->
     <section class="cd-compare">
-      <span class="cd-cmp"><i class="dot you"></i><span data-zh="你" data-en="You" data-ja="あなた">你</span> <b id="cd-you-kwh" class="mono">0</b> kWh</span>
-      <span class="cd-cmp"><i class="dot rl"></i>RL <b id="cd-rl-kwh" class="mono">0</b> kWh</span>
-      <span class="cd-cmp"><span data-zh="舒适" data-en="comfort" data-ja="快適">舒适</span> <b id="cd-onspec" class="cd-cmp-v mono">2/2</b></span>
+      <span class="cd-cmp"><i class="dot you"></i><span data-zh="你" data-en="You" data-ja="あなた">你</span> <b id="cd-cmp-a" class="mono">0</b> <span id="cd-cmp-ab-lbl" class="cd-cmp-u">kWh</span></span>
+      <span class="cd-cmp"><i class="dot rl"></i>RL <b id="cd-cmp-b" class="mono">0</b></span>
+      <span class="cd-cmp"><span id="cd-cmp-c-lbl" class="cd-cmp-u">—</span> <b id="cd-cmp-c" class="cd-cmp-v mono">—</b></span>
     </section>
 
-    <!-- ===== Controls: two AC units (cool ↔ off ↔ heat) ===== -->
-    <section class="cd-controls">
-      <div class="cd-ctl">
-        <div class="cd-ctl-head"><span class="cd-ctl-lbl"><span data-zh="空调" data-en="AC" data-ja="空調">空调</span> <span data-zh="· 区 1" data-en="· Room 1" data-ja="· 室 1">· 区 1</span> <span class="cd-ctl-hint">20–24°</span></span><span class="cd-ctl-val mono" id="cd-h0-val">关</span></div>
-        <input type="range" id="cd-h0" class="cd-slider ac" min="0" max="100" step="1" value="50" />
-      </div>
-      <div class="cd-ctl">
-        <div class="cd-ctl-head"><span class="cd-ctl-lbl"><span data-zh="空调" data-en="AC" data-ja="空調">空调</span> <span data-zh="· 区 2" data-en="· Room 2" data-ja="· 室 2">· 区 2</span> <span class="cd-ctl-hint">20–24°</span></span><span class="cd-ctl-val mono" id="cd-h1-val">关</span></div>
-        <input type="range" id="cd-h1" class="cd-slider ac" min="0" max="100" step="1" value="50" />
-      </div>
-      <div class="cd-ac-legend"><span data-zh="← 制冷" data-en="← cool" data-ja="← 冷房">← 制冷</span><span data-zh="关" data-en="off" data-ja="オフ">关</span><span data-zh="制热 →" data-en="heat →" data-ja="暖房 →">制热 →</span></div>
-    </section>
+    <!-- ===== Controls: built dynamically per level ===== -->
+    <section class="cd-controls" id="cd-controls"></section>
 
     <div class="cd-toast-host" id="cd-toast"></div>
   </div>
@@ -68,6 +67,6 @@
   <!-- ===== Overlay: intro / results ===== -->
   <div class="cd-overlay" id="cd-overlay"><div class="cd-card" id="cd-card"></div></div>
 
-  <script type="module" src="./js/challenge/challenge.js?v=11"></script>
+  <script type="module" src="./js/challenge/challenge.js?v=17"></script>
 </body>
 </html>

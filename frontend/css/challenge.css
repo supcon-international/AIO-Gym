@@ -73,12 +73,18 @@ body.cd{
 .cd-lead{font-size:11px; color:var(--cd-dim); font-weight:600; white-space:nowrap}
 .cd-lead.you{color:var(--cd-you)} .cd-lead.rl{color:var(--cd-rl)}
 
-/* ---------------- Plant P&ID (reused animated schematic on a light "process screen") ---------------- */
+/* ---------------- Plant P&ID — two views (you | RL), reused animated schematics ---------------- */
 .cd-vs-cap{font-size:9px; letter-spacing:1px; color:var(--cd-dim-2); font-weight:600; text-transform:uppercase}
-.cd-arena{flex:1 1 auto; min-height:0; margin:6px 12px 0; padding:4px; border-radius:14px; overflow:hidden;
-  background:radial-gradient(120% 120% at 50% 0%, #fbfcfd, #e9edf0); border:1px solid var(--cd-line-2);
-  display:flex; align-items:center; justify-content:center}
-.cd-arena svg{width:100%; height:100%; display:block}
+.cd-arena{flex:1 1 auto; min-height:0; margin:6px 12px 0; display:flex; flex-direction:column; gap:8px}
+.cd-view{flex:1 1 0; min-height:0; position:relative; border-radius:12px; overflow:hidden;
+  background:radial-gradient(120% 120% at 50% 0%, #fbfcfd, #e9edf0); border:1px solid var(--cd-line-2)}
+.cd-sch{position:absolute; inset:0; display:flex; align-items:center; justify-content:center}
+.cd-sch svg{width:100%; height:100%; display:block}
+.cd-view-tag{position:absolute; top:6px; left:8px; z-index:2; display:flex; align-items:center; gap:5px;
+  font-size:11px; font-weight:700; padding:2px 9px; border-radius:7px; background:rgba(10,16,24,.8)}
+.cd-view-tag .dot{width:7px; height:7px; border-radius:50%}
+.cd-view-tag.you{color:var(--cd-you)} .cd-view-tag.you .dot{background:var(--cd-you); box-shadow:0 0 6px var(--cd-you)}
+.cd-view-tag.rl{color:var(--cd-rl)} .cd-view-tag.rl .dot{background:var(--cd-rl); box-shadow:0 0 6px var(--cd-rl)}
 
 /* ---------------- Energy / on-spec compare ---------------- */
 .cd-compare{flex:0 0 auto; display:flex; justify-content:center; flex-wrap:wrap; gap:8px 16px; padding:9px 14px 2px; font-size:12px; color:var(--cd-dim)}
@@ -87,6 +93,7 @@ body.cd{
 .cd-cmp .dot.you{background:var(--cd-you)} .cd-cmp .dot.rl{background:var(--cd-rl)}
 .cd-cmp b{color:var(--cd-text); font-weight:700}
 .cd-cmp-v.ok{color:var(--cd-you)} .cd-cmp-v.warn{color:var(--cd-warn)} .cd-cmp-v.bad{color:var(--cd-danger)}
+.cd-cmp-u{font-size:11px; color:var(--cd-dim-2)}
 
 /* ---------------- Controls ---------------- */
 .cd-controls{flex:0 0 auto; padding:6px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:9px}
@@ -174,10 +181,27 @@ body.cd{
 .cd-rcell .rsub{font-size:11px; color:var(--cd-dim-2); margin-top:2px}
 .cd-gap{font-size:13px; color:var(--cd-dim); margin:0 0 18px; line-height:1.5}
 .cd-gap b{font-size:15px}
+.cd-btn-row{display:flex; gap:8px}
+.cd-btn-row .cd-btn{flex:1; margin-top:10px}
 
-/* desktop niceties */
-@media (min-width:560px){
-  .cd-app{height:100dvh; max-height:920px; margin-top:max(0px, calc((100dvh - 920px)/2)); border-left:1px solid var(--cd-line); border-right:1px solid var(--cd-line)}
+/* ---------------- Level select ---------------- */
+.cd-levels{display:flex; flex-direction:column; gap:10px; margin:2px 0 4px}
+.cd-level{display:flex; flex-direction:column; gap:2px; width:100%; text-align:left; cursor:pointer; font-family:inherit;
+  padding:14px 16px; border-radius:13px; background:var(--cd-panel); border:1px solid var(--cd-line); transition:.14s}
+.cd-level:hover{border-color:var(--cd-you); background:rgba(178,237,29,.06); transform:translateY(-1px)}
+.cd-level:active{transform:translateY(0)}
+.cd-level-name{font-size:16px; font-weight:700; color:var(--cd-text)}
+.cd-level-tag{font-size:11px; font-weight:600; color:var(--cd-you); letter-spacing:.2px}
+.cd-level-blurb{font-size:12px; color:var(--cd-dim); line-height:1.4; margin-top:3px}
+
+/* desktop: widen the app and put the two plant views side by side to fill the space */
+@media (min-width:880px){
+  .cd-app{max-width:1080px; max-height:940px; margin-top:max(0px, calc((100dvh - 940px)/2));
+    border-left:1px solid var(--cd-line); border-right:1px solid var(--cd-line)}
+  .cd-arena{flex-direction:row; margin:8px 18px 0}
+  .cd-controls{max-width:760px; width:100%; margin:0 auto; flex-direction:row; flex-wrap:wrap}
+  .cd-controls .cd-ctl{flex:1 1 220px}
+  .cd-ac-legend{flex-basis:100%}
 }
 @media (max-height:680px){
   .cd-score-val{font-size:22px} .cd-controls{gap:6px} .cd-ctl-val{font-size:14px}
