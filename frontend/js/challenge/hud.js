@@ -1,76 +1,24 @@
-// Challenge HUD — pure rendering. The arena (two HTML thermometers), the mini
-// overlaid temperature trace (SVG), the you-vs-RL scoreboard, toasts, and the
-// intro/result overlay cards. challenge.js owns all logic and calls into here.
+// Challenge HUD — pure rendering for the cascade game. The plant P&ID is reused
+// from schematic.js (built in challenge.js); here we render the you-vs-RL economic
+// scoreboard, toasts, and the intro/result overlay cards. All strings via i18n.
 import { t } from '../i18n.js?v=15';
 
-export const T_MIN = 40, T_MAX = 100, T_ECO = 88, T_TRIP = 92;
-const pct = (T) => Math.max(0, Math.min(1, (T - T_MIN) / (T_MAX - T_MIN)));
-const fmtMoney = (v) => (v < 0 ? '−' : '') + Math.abs(Math.round(v)).toLocaleString('en-US');
+const r1 = (v) => (v < 0 ? '−' : '') + Math.abs(Math.round(v));
 
-// ---------------- Arena: two thermometers + 88°/92° reference lines ----------------
-export function mountArena(host) {
-  const yEco = (1 - pct(T_ECO)) * 100, yTrip = (1 - pct(T_TRIP)) * 100;
-  const therm = (cls, name) => `
-    <div class="therm ${cls}">
-      <div class="therm-track"><div class="therm-fill"><span class="therm-read mono">--</span></div></div>
-      <div class="therm-cap"><i class="dot"></i>${name}</div>
-    </div>`;
-  host.innerHTML = `<div class="arena-stage"><div class="arena-plot">
-      <div class="aline trip" style="top:${yTrip}%"><span>92° ${t('联锁', 'TRIP', 'インターロック')}</span></div>
-      <div class="aline eco" style="top:${yEco}%"><span>88° ${t('盈利上限', 'profit cap', '利益上限')}</span></div>
-      <div class="arena-therms">
-        ${therm('you', t('你', 'You', 'あなた'))}
-        ${therm('rl', 'RL')}
-      </div>
-    </div></div>`;
-  const fills = host.querySelectorAll('.therm-fill');
-  const reads = host.querySelectorAll('.therm-read');
-  const set = (fill, read, T) => {
-    fill.style.height = (pct(T) * 100).toFixed(1) + '%';
-    read.textContent = T.toFixed(1) + '°';
-    fill.classList.toggle('hot', T >= T_ECO && T < T_TRIP);
-    fill.classList.toggle('crit', T >= T_TRIP);
-  };
-  return { update(youT, rlT) { set(fills[0], reads[0], youT); set(fills[1], reads[1], rlT); } };
-}
-
-// ---------------- Mini overlaid temperature trace ----------------
-export function mountCurve(host) {
-  const W = 320, H = 70, NS = 'http://www.w3.org/2000/svg';
-  const y = (T) => (1 - pct(T)) * H;
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio', 'none');
-  const mkLine = (yv, color) => { const l = document.createElementNS(NS, 'line'); l.setAttribute('x1', 0); l.setAttribute('x2', W); l.setAttribute('y1', yv); l.setAttribute('y2', yv); l.setAttribute('stroke', color); l.setAttribute('stroke-width', 1); l.setAttribute('stroke-dasharray', '3 3'); l.setAttribute('vector-effect', 'non-scaling-stroke'); l.setAttribute('opacity', .5); return l; };
-  svg.appendChild(mkLine(y(T_TRIP), '#FF4D4D')); svg.appendChild(mkLine(y(T_ECO), '#FFC23D'));
-  const mkPath = (color, dash) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', color); p.setAttribute('stroke-width', 2); p.setAttribute('vector-effect', 'non-scaling-stroke'); p.setAttribute('stroke-linejoin', 'round'); if (dash) p.setAttribute('stroke-dasharray', '5 4'); return p; };
-  const pRl = mkPath('#5B9DFF', true), pYou = mkPath('#B2ED1D', false);
-  svg.appendChild(pRl); svg.appendChild(pYou); host.appendChild(svg);
-  const you = [], rl = [];
-  const draw = (arr, path) => {
-    if (arr.length < 2) { path.setAttribute('d', ''); return; }
-    const n = arr.length, d = arr.map((T, i) => `${(i / (n - 1) * W).toFixed(1)},${y(T).toFixed(1)}`);
-    path.setAttribute('d', 'M' + d.join('L'));
-  };
-  return {
-    push(youT, rlT) { you.push(youT); rl.push(rlT); draw(you, pYou); draw(rl, pRl); },
-    reset() { you.length = 0; rl.length = 0; pYou.setAttribute('d', ''); pRl.setAttribute('d', ''); },
-  };
-}
-
-// ---------------- Scoreboard ----------------
+// ---------------- Scoreboard (economic score 0-100, higher = on-spec & low-energy) ----------------
 export function makeScoreboard() {
   const $ = (id) => document.getElementById(id);
   const youV = $('cd-you-profit'), rlV = $('cd-rl-profit'), barY = $('cd-bar-you'), barR = $('cd-bar-rl'), lead = $('cd-lead');
   return {
-    update(youP, rlP) {
-      youV.textContent = fmtMoney(youP); rlV.textContent = fmtMoney(rlP);
-      const lo = Math.min(0, youP, rlP), a = youP - lo, b = rlP - lo, sum = a + b + 1e-6;
-      const sy = Math.max(4, Math.min(96, (a / sum) * 100));
+    update(youS, rlS) {
+      youV.textContent = r1(youS); rlV.textContent = r1(rlS);
+      // emphasise the gap: centre the split, push it by the score difference
+      const sy = Math.max(5, Math.min(95, 50 + (youS - rlS) * 1.4));
       barY.style.width = sy + '%'; barR.style.width = (100 - sy) + '%';
-      const diff = youP - rlP;
-      if (Math.abs(diff) < 1) { lead.textContent = t('势均力敌', 'dead even', '互角'); lead.className = 'cd-lead mono'; }
-      else if (diff > 0) { lead.textContent = t('你领先 ', 'you +', 'あなた +') + fmtMoney(diff); lead.className = 'cd-lead mono you'; }
-      else { lead.textContent = 'RL +' + fmtMoney(-diff); lead.className = 'cd-lead mono rl'; }
+      const d = youS - rlS;
+      if (Math.abs(d) < 1) { lead.textContent = t('势均力敌', 'dead even', '互角'); lead.className = 'cd-lead mono'; }
+      else if (d > 0) { lead.textContent = t('你领先 ', 'you +', 'あなた +') + Math.round(d); lead.className = 'cd-lead mono you'; }
+      else { lead.textContent = 'RL +' + Math.round(-d); lead.className = 'cd-lead mono rl'; }
     },
   };
 }
@@ -88,49 +36,50 @@ export function toast(host, msg, isFault) {
 export function introCard(card, onStart) {
   const rule = (icon, html) => `<div class="cd-rule"><span class="ri">${icon}</span><span>${html}</span></div>`;
   card.innerHTML = `
-    <h1>${t('你能赢过 <span class="em">RL</span> 吗？', 'Can you beat the <span class="em">RL</span>?', '<span class="em">RL</span> に勝てる？')}</h1>
+    <h1>${t('你能比 <span class="em">RL</span> 更省吗？', 'Can you out-save the <span class="em">RL</span>?', '<span class="em">RL</span> より省エネできる？')}</h1>
     <p class="lede">${t(
-      '你是放热反应器的操作员。加料赚钱——但反应放热会把温度推向热失控。同一局里，一个 RL 智能体在<b>完全相同的扰动</b>下与你同台竞速。',
-      'You run an exothermic reactor. Feed makes money — but the reaction\'s heat drives the temperature toward runaway. In the same round, an RL agent races you under the <b>exact same disturbances</b>.',
-      'あなたは発熱反応器のオペレーター。供給で利益が出るが、反応熱が温度を暴走へ押し上げる。同じラウンドで、RL エージェントが<b>まったく同じ外乱</b>の下で競う。')}</p>
+      '你是双区空调的操作员。两个房间都要维持在 20–24° 舒适带——制冷或制热都费电。同一局里，一个 RL 智能体在<b>完全相同的室外天气扰动</b>下与你竞争：谁能既舒适又最省电。',
+      'You run two-zone air-conditioning. Both rooms must stay in the 20–24° comfort band — cooling and heating both cost energy. In the same round, an RL agent competes under the <b>exact same outdoor weather</b>: who stays comfortable for the least energy.',
+      'あなたは2ゾーン空調のオペレーター。両室を 20–24° の快適帯に保つ——冷房も暖房も電力を食う。同じラウンドで RL が<b>まったく同じ外気変動</b>の下で競う:快適かつ最小エネルギーは誰か。')}</p>
     <div class="cd-rules">
-      ${rule('💰', t('<b>进料</b>越多，赚得越快', 'More <b>feed</b> = faster money', '<b>供給</b>が多いほど利益が速い'))}
-      ${rule('🔥', t('温度过 <b>88°</b> 开始扣钱，冲到 <b>92°</b> 进料被强制切断、产量归零', 'Above <b>88°</b> you bleed money; hit <b>92°</b> and the feed trips — production stops', '<b>88°</b> 超で減点、<b>92°</b> で供給遮断・生産停止'))}
-      ${rule('🤖', t('RL 幽灵<b>同场竞速</b>，结束比谁赚得多', 'The RL ghost <b>races alongside</b> — most profit wins', 'RL ゴーストが<b>並走</b>、利益が多い方の勝ち'))}
-      ${rule('⏱', t('一局 <b>60 秒</b>，用冷却压住温度', '<b>60 s</b> per round — ride the cooling', '1 ラウンド <b>60 秒</b>、冷却で抑える'))}
+      ${rule('🌡', t('两个房间都要待在 <b>20–24°</b> 舒适带', 'Keep both rooms in the <b>20–24°</b> comfort band', '両室を <b>20–24°</b> 快適帯に'))}
+      ${rule('⚡', t('制冷/制热越猛越费电——<b>经济分 = 舒适 × 省电</b>', 'Harder cool/heat = more energy — <b>score = comfort × low-energy</b>', '冷暖が強いほど電力——<b>スコア = 快適 × 省エネ</b>'))}
+      ${rule('🌤', t('室外忽冷忽热，<b>随手调空调</b>跟上', 'The weather swings hot/cold — <b>work the AC</b> to keep up', '外気が変動、<b>空調を調整</b>して追従'))}
+      ${rule('🤖', t('只有 <b>2 台空调</b>，简单直接；RL 同场竞速', 'Just <b>2 AC units</b> — simple; the RL races you', '<b>空調2台</b>だけ・シンプル;RL が並走'))}
     </div>
     <button class="cd-btn primary" id="cd-start">${t('开始挑战', 'Start', '挑戦開始')}</button>`;
   card.querySelector('#cd-start').onclick = onStart;
 }
 
 export function resultCard(card, d, onAgain, onBack) {
-  // d: { you, rl, youOver, rlOver, youTrip, rlTrip }
-  const win = d.you > d.rl, close = Math.abs(d.you - d.rl) / (Math.max(Math.abs(d.rl), Math.abs(d.you)) + 1e-6) < 0.08;
+  // d: { you, rl (econ scores 0-100), youKwh, rlKwh, youOk(%) }
+  const win = d.you > d.rl, close = Math.abs(d.you - d.rl) < 6;
   let vClass, vText;
-  if (d.youTrip) { vClass = 'trip'; vText = t('反应器联锁了 🔥', 'Your reactor tripped 🔥', '反応器がトリップ 🔥'); }
-  else if (win && close) { vClass = 'win'; vText = t('险胜 RL！', 'You edged the RL!', 'RL に辛勝！'); }
+  if (win && close) { vClass = 'win'; vText = t('险胜 RL！', 'You edged the RL!', 'RL に辛勝！'); }
   else if (win) { vClass = 'win'; vText = t('你赢了 RL！🏆', 'You beat the RL! 🏆', 'RL に勝利！🏆'); }
   else { vClass = 'lose'; vText = t('RL 赢了这一局', 'The RL won this round', 'RL の勝ち'); }
-  const diff = d.rl - d.you, pctGap = Math.abs(diff) / (Math.abs(d.rl) + 1e-6) * 100;
+  const eGap = (d.youKwh - d.rlKwh) / (Math.abs(d.youKwh) + 1e-6) * 100;   // + = RL used less
   const gapLine = win
-    ? t(`你比 RL 多赚 <b>${fmtMoney(-diff)}</b>`, `You out-earned the RL by <b>${fmtMoney(-diff)}</b>`, `RL より <b>${fmtMoney(-diff)}</b> 多く稼いだ`)
-    : t(`RL 比你多赚 <b>${fmtMoney(diff)}</b>（高 ${pctGap.toFixed(0)}%）`, `The RL out-earned you by <b>${fmtMoney(diff)}</b> (+${pctGap.toFixed(0)}%)`, `RL があなたより <b>${fmtMoney(diff)}</b> 多く稼いだ（+${pctGap.toFixed(0)}%）`);
-  const cell = (cls, name, val, over, trip) => `
+    ? t(`你的经济分领先 <b>${Math.round(d.you - d.rl)}</b>，全程达标率 ${d.youOk}%`,
+        `You led the economic score by <b>${Math.round(d.you - d.rl)}</b>, on-spec ${d.youOk}% of the round`,
+        `経済スコアで <b>${Math.round(d.you - d.rl)}</b> 上回り、規格達成率 ${d.youOk}%`)
+    : t(`RL 用电比你少 <b>${Math.abs(eGap).toFixed(0)}%</b> —— 它学会贴着舒适带边缘、随外温调度省能。`,
+        `The RL used <b>${Math.abs(eGap).toFixed(0)}%</b> less energy — it rides the edge of the comfort band, tracking the weather.`,
+        `RL は電力を <b>${Math.abs(eGap).toFixed(0)}%</b> 削減——快適帯の端に沿い、外気に追従して省エネ。`);
+  const cell = (cls, name, score, kwh) => `
     <div class="cd-rcell ${cls}">
       <div class="rk"><i class="dot"></i>${name}</div>
-      <div class="rv mono">${fmtMoney(val)}</div>
-      <div class="rsub">${trip ? t('已联锁 · 进料被切', 'tripped · feed cut', 'トリップ・供給遮断')
-        : over > 0 ? t(`超温 ${over.toFixed(0)} 秒`, `${over.toFixed(0)}s over-temp`, `超温 ${over.toFixed(0)}秒`)
-        : t('全程安全', 'safe throughout', '終始安全')}</div>
+      <div class="rv mono">${r1(score)}</div>
+      <div class="rsub">${kwh.toFixed(3)} kWh</div>
     </div>`;
   card.innerHTML = `
     <h1>${t('结算', 'Results', '結果')}</h1>
     <div class="cd-verdict ${vClass}">${vText}</div>
     <div class="cd-result-grid">
-      ${cell('you', t('你', 'You', 'あなた'), d.you, d.youOver, d.youTrip)}
-      ${cell('rl', 'RL', d.rl, d.rlOver, d.rlTrip)}
+      ${cell('you', t('你', 'You', 'あなた'), d.you, d.youKwh)}
+      ${cell('rl', 'RL', d.rl, d.rlKwh)}
     </div>
-    <p class="cd-gap">${gapLine}${win ? '' : t('—— RL 学会了贴着 88° 盈利线、随扰动动态调进料。', ' — the RL learned to ride the 88° line and adapt feed to each disturbance.', '—— RL は 88° 線に沿い、外乱ごとに供給を調整することを学習。')}</p>
+    <p class="cd-gap">${gapLine}</p>
     <button class="cd-btn primary" id="cd-again">${t('再来一局', 'Play again', 'もう一度')}</button>
     <button class="cd-btn ghost" id="cd-back2">${t('返回沙盘', 'Back to sandbox', 'サンドボックスへ')}</button>`;
   card.querySelector('#cd-again').onclick = onAgain;

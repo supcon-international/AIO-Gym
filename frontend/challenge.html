@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070D15" />
   <title>AIO-Gym · 挑战 RL</title>
   <link rel="stylesheet" href="./css/tier0.css" />
-  <link rel="stylesheet" href="./css/challenge.css?v=1" />
+  <link rel="stylesheet" href="./css/challenge.css?v=10" />
 </head>
 <body class="cd">
   <div class="cd-app" id="cd-app">
@@ -16,60 +16,58 @@
       <a class="cd-back" href="./index.html" title="返回沙盘 / Back to sandbox">‹</a>
       <div class="cd-title">
         <span class="cd-title-main" data-zh="挑战 RL" data-en="Beat the RL" data-ja="RL に挑戦">挑战 RL</span>
-        <span class="cd-title-sub mono">exothermic CSTR</span>
+        <span class="cd-title-sub mono">two-zone hvac</span>
       </div>
-      <div class="cd-clock-wrap" title="剩余时间 / Time left">
-        <span class="cd-clock mono" id="cd-clock">0:00</span>
-      </div>
+      <span class="cd-clock mono" id="cd-clock" title="剩余时间 / Time left">0:00</span>
       <button id="cd-lang" class="cd-lang" title="中文 / English / 日本語">EN</button>
     </header>
 
-    <!-- ===== Scoreboard: you vs RL profit ===== -->
+    <!-- ===== Scoreboard: you vs RL economic score ===== -->
     <section class="cd-board">
       <div class="cd-score cd-you">
         <span class="cd-score-lbl"><i class="dot"></i><span data-zh="你" data-en="You" data-ja="あなた">你</span></span>
         <span class="cd-score-val mono" id="cd-you-profit">0</span>
       </div>
       <div class="cd-versus">
+        <span class="cd-vs-cap" data-zh="经济分" data-en="ECONOMY" data-ja="経済スコア">经济分</span>
         <div class="cd-bar"><i class="cd-bar-you" id="cd-bar-you"></i><i class="cd-bar-rl" id="cd-bar-rl"></i></div>
         <span class="cd-lead mono" id="cd-lead">—</span>
       </div>
       <div class="cd-score cd-rl">
-        <span class="cd-score-lbl"><span data-zh="RL" data-en="RL" data-ja="RL">RL</span><i class="dot"></i></span>
+        <span class="cd-score-lbl"><span>RL</span><i class="dot"></i></span>
         <span class="cd-score-val mono" id="cd-rl-profit">0</span>
       </div>
     </section>
 
-    <!-- ===== Temperature arena (the core visual) ===== -->
+    <!-- ===== Plant P&ID (reused animated schematic) ===== -->
     <section class="cd-arena" id="cd-arena"></section>
 
-    <!-- ===== Mini overlaid temperature trace ===== -->
-    <section class="cd-curve" id="cd-curve"></section>
+    <!-- ===== Energy / comfort compare ===== -->
+    <section class="cd-compare">
+      <span class="cd-cmp"><i class="dot you"></i><span data-zh="你" data-en="You" data-ja="あなた">你</span> <b id="cd-you-kwh" class="mono">0</b> kWh</span>
+      <span class="cd-cmp"><i class="dot rl"></i>RL <b id="cd-rl-kwh" class="mono">0</b> kWh</span>
+      <span class="cd-cmp"><span data-zh="舒适" data-en="comfort" data-ja="快適">舒适</span> <b id="cd-onspec" class="cd-cmp-v mono">2/2</b></span>
+    </section>
 
-    <!-- ===== Controls: bare-hands cooling + feed ===== -->
+    <!-- ===== Controls: two AC units (cool ↔ off ↔ heat) ===== -->
     <section class="cd-controls">
       <div class="cd-ctl">
-        <div class="cd-ctl-head">
-          <span class="cd-ctl-lbl"><span data-zh="冷却" data-en="Cooling" data-ja="冷却">冷却</span></span>
-          <span class="cd-ctl-val mono" id="cd-cool-val">50%</span>
-        </div>
-        <input type="range" id="cd-cool" class="cd-slider cool" min="0" max="100" step="1" value="50" />
+        <div class="cd-ctl-head"><span class="cd-ctl-lbl"><span data-zh="空调" data-en="AC" data-ja="空調">空调</span> <span data-zh="· 区 1" data-en="· Room 1" data-ja="· 室 1">· 区 1</span> <span class="cd-ctl-hint">20–24°</span></span><span class="cd-ctl-val mono" id="cd-h0-val">关</span></div>
+        <input type="range" id="cd-h0" class="cd-slider ac" min="0" max="100" step="1" value="50" />
       </div>
       <div class="cd-ctl">
-        <div class="cd-ctl-head">
-          <span class="cd-ctl-lbl"><span data-zh="进料" data-en="Feed" data-ja="供給">进料</span> <span class="cd-ctl-hint" data-zh="= 赚钱" data-en="= money" data-ja="= 利益">= 赚钱</span></span>
-          <span class="cd-ctl-val mono" id="cd-feed-val">50%</span>
-        </div>
-        <input type="range" id="cd-feed" class="cd-slider feed" min="0" max="100" step="1" value="50" />
+        <div class="cd-ctl-head"><span class="cd-ctl-lbl"><span data-zh="空调" data-en="AC" data-ja="空調">空调</span> <span data-zh="· 区 2" data-en="· Room 2" data-ja="· 室 2">· 区 2</span> <span class="cd-ctl-hint">20–24°</span></span><span class="cd-ctl-val mono" id="cd-h1-val">关</span></div>
+        <input type="range" id="cd-h1" class="cd-slider ac" min="0" max="100" step="1" value="50" />
       </div>
+      <div class="cd-ac-legend"><span data-zh="← 制冷" data-en="← cool" data-ja="← 冷房">← 制冷</span><span data-zh="关" data-en="off" data-ja="オフ">关</span><span data-zh="制热 →" data-en="heat →" data-ja="暖房 →">制热 →</span></div>
     </section>
 
     <div class="cd-toast-host" id="cd-toast"></div>
   </div>
 
-  <!-- ===== Overlay: intro / countdown / results ===== -->
+  <!-- ===== Overlay: intro / results ===== -->
   <div class="cd-overlay" id="cd-overlay"><div class="cd-card" id="cd-card"></div></div>
 
-  <script type="module" src="./js/challenge/challenge.js?v=7"></script>
+  <script type="module" src="./js/challenge/challenge.js?v=11"></script>
 </body>
 </html>

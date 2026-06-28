@@ -21,7 +21,7 @@ AIO-Gym turns four classic industrial control problems — a heated-tank cascade
 - **Economic, not just tracking.** Scored on an economic objective (value − energy − constraint violation), where a learned policy has real headroom over a fixed-setpoint PID/MPC.
 - **Honest realism.** Sensor noise / deadtime / lag / bias and actuator stiction / slew toggle on or off; disturbances and equipment faults fire automatically, with a pop-up when they do.
 - **Trilingual UI** (English / 中文 / 日本語) and an episodic KPI — one episode = 600 s of sim (≈ 1 min at 10×), scored as a per-episode average.
-- **[Challenge mode](challenge.html).** A mobile-friendly mini-game: hand-control the reactor against an RL ghost racing the *same* disturbances, then see the economic gap for yourself.
+- **[Challenge mode](challenge.html).** A mobile-friendly mini-game: hand-run two-zone air-conditioning against an RL ghost racing the *same* weather — see who keeps both rooms comfortable for less energy.
 
 ### Scenarios
 

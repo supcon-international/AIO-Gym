@@ -73,61 +73,47 @@ body.cd{
 .cd-lead{font-size:11px; color:var(--cd-dim); font-weight:600; white-space:nowrap}
 .cd-lead.you{color:var(--cd-you)} .cd-lead.rl{color:var(--cd-rl)}
 
-/* ---------------- Temperature arena (HTML thermometers) ---------------- */
-.cd-arena{flex:1 1 auto; min-height:0; padding:8px 16px 2px}
-.arena-stage{position:relative; height:100%}
-.arena-plot{position:absolute; left:6px; right:6px; top:12px; bottom:30px}  /* the 40–100°C mapping region */
-.arena-therms{position:absolute; inset:0; display:flex; justify-content:center; gap:clamp(40px,16vw,80px)}
-.aline{position:absolute; left:0; right:0; height:0; border-top:1.5px dashed; z-index:2}
-.aline.eco{border-color:rgba(255,194,61,.5)} .aline.trip{border-color:rgba(255,77,77,.55)}
-.aline span{position:absolute; right:0; top:-8px; font-size:9.5px; font-family:var(--font-mono); padding:1px 5px; border-radius:4px; background:var(--cd-bg-2); white-space:nowrap}
-.aline.eco span{color:var(--cd-warn)} .aline.trip span{color:var(--cd-danger)}
-.therm{position:relative; width:46px}
-.therm-track{position:absolute; inset:0; width:46px; border-radius:13px; background:rgba(255,255,255,.05); border:1px solid var(--cd-line); overflow:visible}
-.therm-fill{position:absolute; left:0; right:0; bottom:0; height:10%; border-radius:0 0 12px 12px; transition:height .12s linear, background .3s}
-.therm.you .therm-fill{background:linear-gradient(0deg,#5c7a12,var(--cd-you))}
-.therm.rl .therm-fill{background:linear-gradient(0deg,#2f5aa0,var(--cd-rl))}
-.therm-fill.hot{background:linear-gradient(0deg,#b35a18,#ff8a3d)!important}
-.therm-fill.crit{background:linear-gradient(0deg,#a31f1f,var(--cd-danger))!important; animation:cdPulse .55s infinite}
-@keyframes cdPulse{50%{filter:brightness(1.45)}}
-.therm-read{position:absolute; left:50%; transform:translateX(-50%); bottom:100%; margin-bottom:6px; font-size:13px; font-weight:700; font-family:var(--font-mono); white-space:nowrap}
-.therm.you .therm-read{color:var(--cd-you)} .therm.rl .therm-read{color:var(--cd-rl)}
-.therm-cap{position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:8px; font-size:11px; font-weight:600; color:var(--cd-dim); display:flex; align-items:center; gap:5px; white-space:nowrap}
-.therm-cap .dot{width:7px; height:7px; border-radius:50%}
-.therm.you .therm-cap .dot{background:var(--cd-you)} .therm.rl .therm-cap .dot{background:var(--cd-rl)}
+/* ---------------- Plant P&ID (reused animated schematic on a light "process screen") ---------------- */
+.cd-vs-cap{font-size:9px; letter-spacing:1px; color:var(--cd-dim-2); font-weight:600; text-transform:uppercase}
+.cd-arena{flex:1 1 auto; min-height:0; margin:6px 12px 0; padding:4px; border-radius:14px; overflow:hidden;
+  background:radial-gradient(120% 120% at 50% 0%, #fbfcfd, #e9edf0); border:1px solid var(--cd-line-2);
+  display:flex; align-items:center; justify-content:center}
+.cd-arena svg{width:100%; height:100%; display:block}
 
-/* ---------------- Mini trace ---------------- */
-.cd-curve{flex:0 0 auto; height:74px; padding:2px 14px 6px}
-.cd-curve svg{width:100%; height:100%; display:block; overflow:visible}
+/* ---------------- Energy / on-spec compare ---------------- */
+.cd-compare{flex:0 0 auto; display:flex; justify-content:center; flex-wrap:wrap; gap:8px 16px; padding:9px 14px 2px; font-size:12px; color:var(--cd-dim)}
+.cd-cmp{display:flex; align-items:center; gap:5px}
+.cd-cmp .dot{width:7px; height:7px; border-radius:50%}
+.cd-cmp .dot.you{background:var(--cd-you)} .cd-cmp .dot.rl{background:var(--cd-rl)}
+.cd-cmp b{color:var(--cd-text); font-weight:700}
+.cd-cmp-v.ok{color:var(--cd-you)} .cd-cmp-v.warn{color:var(--cd-warn)} .cd-cmp-v.bad{color:var(--cd-danger)}
 
 /* ---------------- Controls ---------------- */
-.cd-controls{flex:0 0 auto; padding:8px 14px calc(12px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:12px}
-.cd-ctl{display:flex; flex-direction:column; gap:7px}
+.cd-controls{flex:0 0 auto; padding:6px 14px calc(10px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:9px}
+.cd-ctl{display:flex; flex-direction:column; gap:3px}
 .cd-ctl-head{display:flex; align-items:baseline; justify-content:space-between}
 .cd-ctl-lbl{font-size:13px; font-weight:600; letter-spacing:.2px}
 .cd-ctl-hint{font-size:11px; color:var(--cd-dim-2); font-weight:400}
 .cd-ctl-val{font-size:15px; font-weight:700}
 .cd-ctl .cd-ctl-val{color:var(--cd-text)}
+.cd-ac-legend{display:flex; justify-content:space-between; font-size:10px; color:var(--cd-dim-2); margin-top:-3px; padding:0 3px}
 
 /* big touch sliders */
 .cd-slider{
   -webkit-appearance:none; appearance:none; width:100%; height:14px; border-radius:8px;
-  background:rgba(255,255,255,.09); outline:none; cursor:pointer; margin:6px 0;
+  background:rgba(255,255,255,.09); outline:none; cursor:pointer; margin:3px 0;
   touch-action:none;
 }
-.cd-slider.cool{background:linear-gradient(90deg, rgba(67,198,255,.45), rgba(67,198,255,.10))}
-.cd-slider.feed{background:linear-gradient(90deg, rgba(178,237,29,.12), rgba(178,237,29,.5))}
+.cd-slider.ac{background:linear-gradient(90deg, rgba(67,198,255,.55), rgba(255,255,255,.06) 50%, rgba(255,138,61,.55))}
 .cd-slider::-webkit-slider-thumb{
-  -webkit-appearance:none; appearance:none; width:30px; height:30px; border-radius:50%;
-  background:#fff; border:3px solid var(--cd-cool); box-shadow:0 2px 10px rgba(0,0,0,.5); cursor:grab;
+  -webkit-appearance:none; appearance:none; width:28px; height:28px; border-radius:50%;
+  background:#fff; border:3px solid #cdd2d8; box-shadow:0 2px 10px rgba(0,0,0,.5); cursor:grab;
 }
-.cd-slider.feed::-webkit-slider-thumb{border-color:var(--cd-you)}
 .cd-slider::-webkit-slider-thumb:active{cursor:grabbing; transform:scale(1.08)}
 .cd-slider::-moz-range-thumb{
-  width:30px; height:30px; border-radius:50%; background:#fff; border:3px solid var(--cd-cool);
+  width:28px; height:28px; border-radius:50%; background:#fff; border:3px solid #cdd2d8;
   box-shadow:0 2px 10px rgba(0,0,0,.5); cursor:grab;
 }
-.cd-slider.feed::-moz-range-thumb{border-color:var(--cd-you)}
 
 /* ---------------- Toasts ---------------- */
 .cd-toast-host{position:absolute; left:0; right:0; top:96px; display:flex; flex-direction:column; align-items:center; gap:6px; pointer-events:none; z-index:20}
@@ -147,7 +133,7 @@ body.cd{
 /* ---------------- Overlay (intro / results) ---------------- */
 .cd-overlay{
   position:fixed; inset:0; z-index:40; display:flex; align-items:center; justify-content:center;
-  padding:20px; background:rgba(4,8,14,.82); backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+  padding:20px; background:rgba(6,10,18,.975); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
   animation:cdFade .25s ease both;
 }
 .cd-overlay[hidden]{display:none}
@@ -194,5 +180,5 @@ body.cd{
   .cd-app{height:100dvh; max-height:920px; margin-top:max(0px, calc((100dvh - 920px)/2)); border-left:1px solid var(--cd-line); border-right:1px solid var(--cd-line)}
 }
 @media (max-height:680px){
-  .cd-score-val{font-size:22px} .cd-curve{height:56px} .cd-arena{padding-top:0}
+  .cd-score-val{font-size:22px} .cd-controls{gap:6px} .cd-ctl-val{font-size:14px}
 }

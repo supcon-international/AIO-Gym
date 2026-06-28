@@ -1,21 +1,32 @@
-// Challenge mode — Human vs RL on the exothermic CSTR. Two independent Engine
-// instances (you = bare-hands manual cooling+feed, RL = its supervisory policy)
-// run the SAME seeded disturbance timeline in lock-step. Whoever earns more wins.
+// Challenge mode — Human vs RL on the two-zone HVAC. You hand-control both AC
+// units (cool ↔ off ↔ heat) to keep each room inside the comfort band [20,24]°C
+// against an outdoor temperature that swings hot/cold — using the LEAST energy.
+// An RL ghost runs the SAME seeded disturbances. Higher economic score wins.
+// Reuses the sandbox engine + animated P&ID.
 import { Engine } from '../sim/engine.js?v=15';
-import { t, lang, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=15';
-import { mountArena, mountCurve, makeScoreboard, toast, introCard, resultCard, T_ECO, T_TRIP } from './hud.js?v=1';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=15';
+import { buildSchematic } from '../schematic.js?v=15';
+import { makeScoreboard, toast, introCard, resultCard } from './hud.js?v=9';
 
-const SCENARIO = 'cstr';
-const TICK = 0.05;            // engine tick (s), matches the sandbox
-const SPEED = 8;             // sim acceleration → 60 s real ≈ 480 s sim (< 600 s episode, so no reset)
-const CONTROL_DT = 0.1;     // inner control/integration sub-step — decoupled from SPEED so the
-                            // PID/RL loop stays fast enough that the exothermic feedback can't overshoot to trip
-const DURATION_REAL = 60;    // one round, in wall-clock seconds
-const SIM_TOTAL = DURATION_REAL * SPEED;
-const CURVE_EVERY = 10;      // push a trace point every N ticks (~0.5 s real)
+const SCENARIO = 'hvac';
+const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
+const DURATION_REAL = 60, SIM_TOTAL = DURATION_REAL * SPEED;
+const N = 2;
+const BANDS = [[20, 24], [20, 24]];                  // comfort bands (mirrors scoring ECON hvac)
+const START = [22, 22];                              // both rooms start mid-band, on-spec
+const UNIT0 = [0.5, 0.5];                            // 0.5 = AC off (neutral)
 const LANG_NAMES = { zh: '中', en: 'EN', ja: '日本語' };
+// Challenge-calibrated economic score: map per-step profit-rate to 0-100 over
+// [idle/frozen, ideal]. scoring.js's ECON_REF is tuned for the sandbox's wider
+// operating range and clamps every decent player to 100 here — useless for a
+// head-to-head. This range keeps the good-strategy zone (where you and the RL
+// both live) resolvable, so the better operator actually wins.
+const SCORE_REF = [-32, 0];
+const scoreOf = (eng) => {
+  const rt = eng.score.report().econ.profit_rate;
+  return Math.max(0, Math.min(100, 100 * (rt - SCORE_REF[0]) / (SCORE_REF[1] - SCORE_REF[0])));
+};
 
-// deterministic PRNG so a round (seed) is exactly replayable for both players
 function mulberry32(a) {
   return function () {
     a |= 0; a = (a + 0x6D2B79F5) | 0;
@@ -25,18 +36,18 @@ function mulberry32(a) {
   };
 }
 
-// Build a deterministic disturbance timeline (cold-inlet swings ± a little sensor noise).
-// Cold-inlet raises/lowers feed temperature → directly perturbs the reactor heat balance.
+// Deterministic timeline of outdoor-temperature swings: the weather turns hot or
+// cold, dragging both rooms off the comfort band — you must work the AC to hold
+// 20-24°C without over-spending energy.
 function buildTimeline(seed) {
   const rnd = mulberry32(seed), ev = [];
-  let tt = 10 + rnd() * 8;
+  let tt = 9 + rnd() * 7;
   while (tt < SIM_TOTAL - 12) {
-    const warm = rnd() < 0.5;                       // half are heat-up swings (the dangerous ones)
-    const mag = warm ? 4 + rnd() * 5 : -(3 + rnd() * 4);
-    ev.push({ t: tt, dur: 9 + rnd() * 9, type: 'cold_inlet', params: { value: +mag.toFixed(2) }, warm });
-    tt += 14 + rnd() * 16;
+    const hot = rnd() < 0.5;
+    const mag = hot ? (8 + rnd() * 9) : -(8 + rnd() * 9);   // outdoor jumps to ~28-37 or ~2-11°C
+    ev.push({ t: tt, dur: 11 + rnd() * 10, type: 'ambient', params: { value: +mag.toFixed(2) }, hot });
+    tt += 13 + rnd() * 15;
   }
-  if (rnd() < 0.6) { const nt = SIM_TOTAL * (0.4 + rnd() * 0.3); ev.push({ t: nt, dur: 12, type: 'sensor_noise', params: { temp_std: 1.2, level_std: 0 }, noise: true }); }
   return ev.sort((a, b) => a.t - b.t);
 }
 
@@ -45,9 +56,9 @@ class Challenge {
     this.human = new Engine(SCENARIO);
     this.ghost = new Engine(SCENARIO);
     for (const e of [this.human, this.ghost]) { e.handleCommand({ type: 'set_auto_events', on: false }); e.handleCommand({ type: 'set_fidelity', level: 1 }); e.running = false; }
-    this.ghost.setMode('rl');                         // loads rlpd_cstr.onnx (async; ready within the intro read-time)
-    this.arena = mountArena(document.getElementById('cd-arena'));
-    this.curve = mountCurve(document.getElementById('cd-curve'));
+    this.ghost.setMode('rl');                        // loads rlpd_hvac.onnx (async; ready by start)
+    this.units = UNIT0.slice();
+    this.schematic = buildSchematic(document.getElementById('cd-arena'), this.human.model.metadata());
     this.board = makeScoreboard();
     this.toastHost = document.getElementById('cd-toast');
     this.overlay = document.getElementById('cd-overlay');
@@ -61,42 +72,38 @@ class Challenge {
   }
 
   _bindControls() {
-    const cool = document.getElementById('cd-cool'), feed = document.getElementById('cd-feed');
-    const coolV = document.getElementById('cd-cool-val'), feedV = document.getElementById('cd-feed-val');
-    this.cool = cool; this.feed = feed;
-    cool.addEventListener('input', () => { coolV.textContent = cool.value + '%'; this.human.handleCommand({ type: 'manual_cmd', kind: 'heater', index: 0, value: +cool.value / 100 }); });
-    feed.addEventListener('input', () => { feedV.textContent = feed.value + '%'; this.human.handleCommand({ type: 'manual_cmd', kind: 'pump', index: 0, value: +feed.value / 100 }); });
+    this.sliders = [];
+    for (let i = 0; i < N; i++) {
+      const sl = document.getElementById('cd-h' + i), vv = document.getElementById('cd-h' + i + '-val');
+      this.sliders.push(sl);
+      sl.addEventListener('input', () => { this.units[i] = +sl.value / 100; vv.textContent = acLabel(this.units[i]); });
+    }
   }
   _bindLang() { document.getElementById('cd-lang').addEventListener('click', () => setLang(nextLang())); }
   _syncLangBtn() { document.getElementById('cd-lang').textContent = LANG_NAMES[nextLang()]; }
   _rebuildLangView() {
-    this.arena = mountArena(document.getElementById('cd-arena'));   // arena labels are localized
+    this.schematic = buildSchematic(document.getElementById('cd-arena'), this.human.model.metadata());
+    for (let i = 0; i < N; i++) document.getElementById('cd-h' + i + '-val').textContent = acLabel(this.units[i]);
     if (this.phase === 'intro') this.showIntro();
     else if (this.phase === 'done') this._showResult();
   }
 
-  showIntro() {
-    this.phase = 'intro';
-    this.overlay.hidden = false;
-    introCard(this.card, () => this.start());
-  }
+  showIntro() { this.phase = 'intro'; this.overlay.hidden = false; introCard(this.card, () => this.start()); }
 
   start() {
-    this.overlay.hidden = true;
-    this.phase = 'play';
+    this.overlay.hidden = true; this.phase = 'play';
     this.seed = (Date.now() >>> 0) ^ 0x9e3779b9;
     this.timeline = buildTimeline(this.seed);
-    this._tlIdx = 0; this._active = [];           // pending / active disturbance events
-    this.tickN = 0; this.simT = 0;
-    this.youOver = 0; this.rlOver = 0; this.youTrip = false; this.rlTrip = false;
-    // reset both plants, re-apply the player's current slider positions
-    this.human.reset(); this.ghost.reset(); this.curve.reset();
-    // Start near a working steady state. The model's cold Ca=0.5 / T=50 start ignites a
-    // large exothermic transient that overshoots to ~90° (can trip) before the operator
-    // has even begun — unfair and confusing. Begin in the band where the game is played.
-    for (const e of [this.human, this.ghost]) { e.integ.reset([0.10, 60]); e.state = e.integ.getState(e.lastAct, e.disturb.environment(), 0); }
-    this.human.handleCommand({ type: 'manual_cmd', kind: 'heater', index: 0, value: +this.cool.value / 100 });
-    this.human.handleCommand({ type: 'manual_cmd', kind: 'pump', index: 0, value: +this.feed.value / 100 });
+    this._tlIdx = 0; this._active = [];
+    this.tickN = 0; this.simT = 0; this.steps = 0; this.okSteps = [0, 0];
+    this.human.reset(); this.ghost.reset();
+    for (const e of [this.human, this.ghost]) { e.integ.reset(START.slice()); e.state = e.integ.getState(e.lastAct, e.disturb.environment(), 0); }
+    this.units = UNIT0.slice();
+    for (let i = 0; i < N; i++) {
+      this.sliders[i].value = Math.round(this.units[i] * 100);
+      document.getElementById('cd-h' + i + '-val').textContent = acLabel(this.units[i]);
+      this.human.handleCommand({ type: 'manual_cmd', kind: 'heater', index: i, value: this.units[i] });
+    }
     this.human.running = this.ghost.running = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => this._loop(), TICK * 1000);
@@ -105,18 +112,21 @@ class Challenge {
   _loop() {
     const dt = TICK * SPEED;
     this._applyTimeline();
-    // sub-step the inner loop: coarse control steps let the exothermic feedback overshoot toward trip
-    for (let acc = 0; acc < dt - 1e-9; acc += CONTROL_DT) { const s = Math.min(CONTROL_DT, dt - acc); this.human._tick(s); this.ghost._tick(s); }
-    this.simT += dt; this.tickN++;
+    // keep the player's latest AC commands applied (bare-hands manual, no inner PID)
+    for (let i = 0; i < N; i++) this.human.manual.setSingle('heater', i, this.units[i]);
+    for (let acc = 0; acc < dt - 1e-9; acc += CONTROL_DT) {
+      const s = Math.min(CONTROL_DT, dt - acc);
+      this.human._tick(s);
+      this.ghost._tick(s);
+    }
+    this.simT += dt; this.tickN++; this.steps++;
 
-    const youT = this.human.state.temps[0], rlT = this.ghost.state.temps[0];
-    if (youT > T_ECO) this.youOver += dt; if (rlT > T_ECO) this.rlOver += dt;
-    if (this.human.mask.pump_trip) this.youTrip = true;
-    if (this.ghost.mask.pump_trip) this.rlTrip = true;
+    const yT = this.human.state.temps;
+    for (let i = 0; i < N; i++) if (yT[i] >= BANDS[i][0] && yT[i] <= BANDS[i][1]) this.okSteps[i]++;
 
-    this.arena.update(youT, rlT);
-    this.board.update(this.human.score.econProfit, this.ghost.score.econProfit);
-    if (this.tickN % CURVE_EVERY === 0) this.curve.push(youT, rlT);
+    this.schematic.update(this.human.telemetry());
+    this.board.update(scoreOf(this.human), scoreOf(this.ghost));
+    this._updateCompare(yT);
 
     const remain = Math.max(0, DURATION_REAL - this.tickN * TICK);
     const mm = Math.floor(remain / 60), ss = Math.floor(remain % 60);
@@ -126,7 +136,14 @@ class Challenge {
     if (this.simT >= SIM_TOTAL) this._end();
   }
 
-  // Inject each timeline event into BOTH engines at its sim time, clear it when it expires.
+  _updateCompare(yT) {
+    document.getElementById('cd-you-kwh').textContent = this.human.score.energy.toFixed(3);
+    document.getElementById('cd-rl-kwh').textContent = this.ghost.score.energy.toFixed(3);
+    const ok = yT.reduce((a, T, i) => a + (T >= BANDS[i][0] && T <= BANDS[i][1] ? 1 : 0), 0);
+    const lamp = document.getElementById('cd-onspec');
+    lamp.textContent = ok + '/2'; lamp.className = 'cd-cmp-v mono ' + (ok === 2 ? 'ok' : ok === 0 ? 'bad' : 'warn');
+  }
+
   _applyTimeline() {
     while (this._tlIdx < this.timeline.length && this.timeline[this._tlIdx].t <= this.simT) {
       const e = this.timeline[this._tlIdx++];
@@ -146,11 +163,11 @@ class Challenge {
   }
 
   _notify(e) {
-    let msg, fault = false;
-    if (e.noise) { msg = t('传感器噪声 · 读数变脏', 'Sensor noise · readings get noisy', 'センサーノイズ・測定値が乱れる'); }
-    else if (e.warm) { msg = t(`进料升温 +${e.params.value}° · 当心超温`, `Feed warms +${e.params.value}° · watch the temp`, `供給が +${e.params.value}° 上昇・温度注意`); fault = true; }
-    else { msg = t(`进料降温 ${e.params.value}° · 可趁机加料`, `Feed cools ${e.params.value}° · room to push feed`, `供給が ${e.params.value}° 低下・増給の好機`); }
-    toast(this.toastHost, msg, fault);
+    const out = (15 + e.params.value).toFixed(0);
+    const msg = e.hot
+      ? t(`室外升温到 ${out}° · 该开冷气`, `Outdoor up to ${out}° · cool it down`, `室外 ${out}° に上昇・冷房を`)
+      : t(`室外降到 ${out}° · 该开暖气`, `Outdoor down to ${out}° · warm it up`, `室外 ${out}° に低下・暖房を`);
+    toast(this.toastHost, msg, e.hot);
   }
 
   _end() {
@@ -158,8 +175,9 @@ class Challenge {
     this.human.running = this.ghost.running = false;
     this.phase = 'done';
     this._result = {
-      you: this.human.score.econProfit, rl: this.ghost.score.econProfit,
-      youOver: this.youOver, rlOver: this.rlOver, youTrip: this.youTrip, rlTrip: this.rlTrip,
+      you: scoreOf(this.human), rl: scoreOf(this.ghost),
+      youKwh: this.human.score.energy, rlKwh: this.ghost.score.energy,
+      youOk: Math.round(100 * this.okSteps.reduce((a, b) => a + b, 0) / (N * Math.max(1, this.steps))),
     };
     this._showResult();
   }
@@ -167,6 +185,13 @@ class Challenge {
     this.overlay.hidden = false;
     resultCard(this.card, this._result, () => this.start(), () => { location.href = './index.html'; });
   }
+}
+
+// AC slider label: 0.5 = off, >0.5 heat, <0.5 cool
+function acLabel(u) {
+  const k = Math.round(Math.abs(u - 0.5) * 200);
+  if (k < 4) return t('关', 'off', 'オフ');
+  return (u > 0.5 ? t('暖 ', 'heat ', '暖 ') : t('冷 ', 'cool ', '冷 ')) + k + '%';
 }
 
 new Challenge();
