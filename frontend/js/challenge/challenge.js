@@ -5,9 +5,9 @@
 // product credit − energy×price − off-spec penalty. Costs are negative; HIGHER
 // always wins. Anti-idle: idling drifts off-spec and the penalty dwarfs the
 // energy saved. Reuses the sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=22';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=22';
-import { buildSchematic } from '../schematic.js?v=22';
+import { Engine } from '../sim/engine.js?v=23';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=23';
+import { buildSchematic } from '../schematic.js?v=23';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
@@ -136,8 +136,8 @@ class Challenge {
   _syncLangBtn() { document.getElementById('cd-lang').textContent = LANG_NAMES[nextLang()]; }
   _rebuildLangView() {
     if (this.cfg) {
-      this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata());
-      this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata());
+      this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
+      this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
       this._buildControls();
       document.getElementById('cd-sub').textContent = this.cfg.sub;
       const cap = document.querySelector('.cd-vs-cap');
@@ -164,8 +164,8 @@ class Challenge {
     const cap = document.querySelector('.cd-vs-cap');
     if (cap) cap.textContent = this.cfg.money === 'profit' ? t('利润 ¥/h · 高者胜', 'Profit ¥/h · higher wins', '利益 ¥/h · 高い方が勝ち')
                                                             : t('运行成本 ¥/h · 低者胜', 'Cost ¥/h · lower wins', '運転コスト ¥/h · 低い方が勝ち');
-    this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata());
-    this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata());
+    this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
+    this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
     this._buildControls();
     this.start();
   }
