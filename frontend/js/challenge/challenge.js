@@ -5,9 +5,9 @@
 // product credit − energy×price − off-spec penalty. Costs are negative; HIGHER
 // always wins. Anti-idle: idling drifts off-spec and the penalty dwarfs the
 // energy saved. Reuses the sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=21';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=21';
-import { buildSchematic } from '../schematic.js?v=21';
+import { Engine } from '../sim/engine.js?v=22';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=22';
+import { buildSchematic } from '../schematic.js?v=22';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;

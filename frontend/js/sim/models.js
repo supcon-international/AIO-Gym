@@ -2,7 +2,7 @@
 // the ODE right-hand side, topology metadata, default control pairing and the
 // ideal-power reference for scoring. Same equations and numbers as the Python
 // reference, so behaviour matches. A model is integrated by ../sim/kernel.js.
-import { t } from '../i18n.js?v=21';
+import { t } from '../i18n.js?v=22';
 
 const RHO = 1000, CP = 4186, G = 9.81, RHO_CP = RHO * CP;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -171,7 +171,10 @@ class QuadrupleModel {
   metadata() {
     const phase = this.gamma1 + this.gamma2 > 1 ? t('最小相位', 'Minimum-phase', '最小位相') : t('非最小相位 (RHP 零点)', 'Non-minimum-phase (RHP zero)', '非最小位相 (RHP 零点)');
     return {
-      scenario: 'quadruple', topology: 'quadruple', name: t('四水箱过程 (Johansson 基准)', 'Quadruple-Tank (Johansson)', '4タンクプロセス (Johansson ベンチマーク)'), n_tanks: 4,
+      scenario: 'quadruple', topology: 'quadruple',
+      blurb: t('泵按 γ 分流:直连本侧下罐,斜穿到对侧上罐 → 交叉耦合。γ₁+γ₂ < 1 时进入非最小相位区,PID 明显吃力。',
+               'Pumps split by γ: straight to the near lower tank, diagonally to the far upper tank → cross-coupling. γ₁+γ₂ < 1 puts it in the non-minimum-phase regime where PID visibly struggles.',
+               'ポンプは γ で分流:直進は手前の下タンク、斜めは対側の上タンク → 交差結合。γ₁+γ₂ < 1 で非最小位相領域に入り、PID は明らかに苦戦。'), name: t('四水箱过程 (Johansson 基准)', 'Quadruple-Tank (Johansson)', '4タンクプロセス (Johansson ベンチマーク)'), n_tanks: 4,
       tank_labels: [t('T-1 下', 'T-1 low', 'T-1 下'), t('T-2 下', 'T-2 low', 'T-2 下'), t('T-3 上', 'T-3 up', 'T-3 上'), t('T-4 上', 'T-4 up', 'T-4 上')],
       actuators: { pumps: [t('泵 P-1', 'Pump P-1', 'ポンプ P-1'), t('泵 P-2', 'Pump P-2', 'ポンプ P-2')], valves: [], heaters: [t('加热器 E-1', 'Heater E-1', 'ヒーター E-1'), t('加热器 E-2', 'Heater E-2', 'ヒーター E-2'), t('加热器 E-3', 'Heater E-3', 'ヒーター E-3'), t('加热器 E-4', 'Heater E-4', 'ヒーター E-4')] },
       controlled_levels: [0, 1], height_max: this.heightMax,
@@ -235,7 +238,10 @@ class CSTRModel {
   setConfig() {}
   metadata() {
     return {
-      scenario: 'cstr', topology: 'cstr', name: t('放热反应器 CSTR', 'Exothermic CSTR', '発熱反応器 CSTR'), n_tanks: 1,
+      scenario: 'cstr', topology: 'cstr',
+      blurb: t('放热反应靠冷却控温;冷却不足 → Arrhenius 正反馈 → 热失控(92°C 联锁切进料)。产量最大点贴着安全边界。',
+               'An exothermic reaction held by cooling; too little → Arrhenius positive feedback → thermal runaway (feed trips at 92°C). Peak production hugs the safety edge.',
+               '発熱反応は冷却で制御;冷却不足 → アレニウス正帰還 → 熱暴走(92°C で供給遮断)。生産量の最大点は安全境界に貼り付く。'), name: t('放热反应器 CSTR', 'Exothermic CSTR', '発熱反応器 CSTR'), n_tanks: 1,
       tank_labels: [t('R-1 反应器', 'R-1 reactor', 'R-1 反応器')],
       actuators: { pumps: [t('进料', 'Feed', '供給')], valves: [], heaters: [t('冷却', 'Cooling', '冷却')] },
       controlled_levels: [], height_max: [1],
@@ -380,7 +386,10 @@ class FiredHeaterModel {
   setConfig() {}
   metadata() {
     return {
-      scenario: 'heater', topology: 'heater', name: t('管式加热炉', 'Fired Heater', '管式加熱炉'), n_tanks: 1,
+      scenario: 'heater', topology: 'heater',
+      blurb: t('燃料把进料加热到目标出口温度;过剩空气带走热量(费燃料),风太少 → 低氧联锁切燃料。省燃料的最优点贴着低氧边界。',
+               'Fuel heats the feed to the target outlet temperature; excess air steals heat (wastes fuel), too little air trips the burner on low O₂. The fuel-optimal point hugs the low-O₂ edge.',
+               '燃料が供給を目標出口温度へ加熱;過剰空気は熱を奪い(燃料浪費)、空気不足は低 O₂ で燃料遮断。省燃料の最適点は低 O₂ 境界に貼り付く。'), name: t('管式加热炉', 'Fired Heater', '管式加熱炉'), n_tanks: 1,
       tank_labels: [t('F-1 加热炉', 'F-1 heater', 'F-1 加熱炉')],
       actuators: { pumps: [], valves: [t('风门 FD-1', 'Air damper FD-1', 'ダンパー FD-1')], heaters: [t('燃料阀 FV-1', 'Fuel valve FV-1', '燃料弁 FV-1')] },
       controlled_levels: [0], height_max: this.heightMax,

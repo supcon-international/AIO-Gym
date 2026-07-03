@@ -2,7 +2,7 @@
 // cascade, or the Johansson quadruple-tank (2 lower + 2 upper, crossed pump
 // feeds). Both bind tank water height/colour, heater glow, pump and pipe-flow
 // animation to live telemetry.
-import { t as L } from './i18n.js?v=21';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=22';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {
@@ -123,12 +123,7 @@ function buildHeater(host, meta) {
   const W = 720, H = 400;
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
-  svg.appendChild(el('text', { x: W / 2, y: 18, fill: '#585C62', 'font-size': 10.5, 'text-anchor': 'middle' },
-    txt(L('燃料把进料加热到目标出口温度;过剩空气带走热量(费燃料),风太少 → 低氧联锁切燃料',
-          'Fuel heats the feed to the target outlet temp; excess air steals heat (wastes fuel), too little → low-O₂ fuel trip',
-          '燃料が供給を目標出口温度へ加熱;過剰空気は熱を奪い(燃料浪費)、不足 → 低 O₂ で燃料遮断'))));
-
-  const bx = 250, by = 90, bw = 220, bh = 240, cx = bx + bw / 2, bbot = by + bh;
+    const bx = 250, by = 90, bw = 220, bh = 240, cx = bx + bw / 2, bbot = by + bh;
   // firebox shell (refractory)
   svg.appendChild(el('rect', { x: bx - 8, y: by - 8, width: bw + 16, height: bh + 16, rx: 10, fill: '#F3EDE4', stroke: '#B99D7B', 'stroke-width': 3 }));
   svg.appendChild(el('rect', { x: bx, y: by, width: bw, height: bh, rx: 6, fill: '#1c2430', stroke: '#5A626C', 'stroke-width': 1.5 }));
@@ -142,6 +137,8 @@ function buildHeater(host, meta) {
   const o2T = el('text', { x: sx + 84, y: by - 40, fill: '#0E8aa0', 'font-size': 15, 'font-weight': 700, 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('O₂ --'));
   const o2SpT = el('text', { x: sx + 84, y: by - 24, fill: '#73B200', 'font-size': 10.5, 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('SP --'));
   svg.appendChild(o2T); svg.appendChild(o2SpT);
+  svg.appendChild(el('text', { x: sx + 84, y: by - 10, fill: '#C0392B', 'font-size': 9.5, 'font-family': 'IBM Plex Mono, monospace', ...HALO },
+    txt('⛔ <1.2% ' + L('切燃料', 'fuel trip', '燃料遮断'))));
 
   // process coil through the upper firebox: feed in (left) -> outlet (right)
   const cy0 = by + 52;
@@ -288,10 +285,7 @@ function buildQuadruple(host, meta) {
   const refs = { tanks: [], pumps: [], pipes: {} };
 
   // reading guide
-  svg.appendChild(el('text', { x: W / 2, y: 16, fill: '#585C62', 'font-size': 10.5, 'text-anchor': 'middle' },
-    txt(L('泵按 γ 分流：直连本侧下罐，斜穿到对侧上罐 → 交叉耦合', 'Each pump splits by γ: straight to the near lower tank, crossed to the far upper tank → cross-coupling', '各ポンプは γ で分流：同じ側の下部タンクへ直結、対角に対側の上部タンクへ → 交差結合'))));
-
-  // --- pipes (behind tanks) ---
+    // --- pipes (behind tanks) ---
   // pump risers
   refs.pipes.r1 = flowPipe(svg, `M${P1x},${Py - 13} V${Sy}`, C1);
   refs.pipes.r2 = flowPipe(svg, `M${P2x},${Py - 13} V${Sy}`, C2);
@@ -382,10 +376,7 @@ function buildCSTR(host, meta) {
   const W = 720, H = 400;
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
-  svg.appendChild(el('text', { x: W / 2, y: 18, fill: '#585C62', 'font-size': 10.5, 'text-anchor': 'middle' },
-    txt(L('放热反应靠冷却控温;冷却不足 → Arrhenius 正反馈 → 热失控', 'Exothermic reaction held by cooling; too little → Arrhenius runaway', '放熱反応は冷却で制御;冷却不足 → アレニウス正帰還 → 熱暴走'))));
-
-  const rx = 280, ry = 86, rw = 180, rh = 214, cx = rx + rw / 2, rbot = ry + rh;
+    const rx = 280, ry = 86, rw = 180, rh = 214, cx = rx + rw / 2, rbot = ry + rh;
   // feed (top) + product (bottom) pipes
   const feed = flowPipe(svg, `M120,150 V${ry - 14} H${cx} V${ry}`, '#2563EB');
   const prod = flowPipe(svg, `M${cx},${rbot} V${rbot + 26} H${rx + rw + 70}`, '#5B8DEF');
@@ -409,7 +400,9 @@ function buildCSTR(host, meta) {
   const tempT = el('text', { x: cx, y: ry + 92, fill: '#0B1220', 'font-size': 30, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('--'));
   const caT = el('text', { x: cx, y: ry + 122, fill: '#3F6B00', 'font-size': 14, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('Cₐ --'));
   const spT = el('text', { x: cx, y: ry + 142, fill: '#73B200', 'font-size': 11, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('SP --'));
-  svg.appendChild(tempT); svg.appendChild(caT); svg.appendChild(spT);
+  const tripL = el('text', { x: cx, y: ry + 160, fill: '#C0392B', 'font-size': 9.5, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono, monospace', ...HALO },
+    txt('⛔ >92° ' + L('失控联锁', 'runaway trip', '暴走遮断')));
+  svg.appendChild(tempT); svg.appendChild(caT); svg.appendChild(spT); svg.appendChild(tripL);
   host.appendChild(svg);
 
   return {

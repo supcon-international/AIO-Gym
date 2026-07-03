@@ -46,9 +46,11 @@
       <span class="ctl-lbl" data-zh="控制" data-en="Mode" data-ja="制御">控制</span>
       <div class="seg" id="mode-seg" title="控制模式 / Control mode">
         <button data-mode="manual" class="active" data-zh="手动" data-en="Manual" data-ja="手動">手动</button>
-        <button data-mode="pid">PID</button>
-        <button data-mode="mpc" title="APC 风格多变量 MPC / APC-style MPC">MPC</button>
-        <button data-mode="rl" title="RL 监督控制：RL 设定点 → PID / RL supervisory control">RL</button>
+        <i class="seg-div" title="传统自动 / Conventional automation"></i>
+        <button data-mode="pid" title="传统自动 · 多回路 PID / Conventional: multi-loop PID">PID</button>
+        <button data-mode="mpc" title="传统自动 · APC 风格多变量 MPC / Conventional: APC-style MPC">MPC</button>
+        <i class="seg-div" title="AI 优化 / AI optimization"></i>
+        <button data-mode="rl" class="ai" title="AI 优化 · RL 设定点 → PID 执行 / AI: RL setpoints → PID">RL</button>
       </div>
     </div>
 
@@ -86,7 +88,7 @@
 
     <section class="col col-center">
       <div class="panel schematic-panel">
-        <div class="panel-h"><span data-zh="工艺流程 P&amp;ID" data-en="Process P&amp;ID" data-ja="プロセスフロー P&amp;ID">工艺流程 P&amp;ID</span><span id="env-readout" class="muted mono"></span></div>
+        <div class="panel-h"><span><span data-zh="工艺流程 P&amp;ID" data-en="Process P&amp;ID" data-ja="プロセスフロー P&amp;ID">工艺流程 P&amp;ID</span> <span id="pid-info" class="info-i" hidden>i</span></span><span id="env-readout" class="muted mono"></span></div>
         <div class="panel-b" id="schematic-host"></div>
       </div>
       <div class="charts" id="charts-host"></div>
@@ -107,6 +109,6 @@
   <div id="toast-host" class="toast-host"></div>
 
   <script src="./vendor/uPlot.iife.min.js"></script>
-  <script type="module" src="./js/app.js?v=21"></script>
+  <script type="module" src="./js/app.js?v=22"></script>
 </body>
 </html>

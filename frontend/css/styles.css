@@ -70,6 +70,10 @@ button{font-family:inherit}
 .seg button:hover:not(:disabled):not(.active){background:var(--fx-green-1); color:var(--text)}
 .seg button.active{background:var(--fx-green-1); color:#3F6B00; font-weight:600; border-bottom-color:var(--fx-lime)}
 .seg button:disabled{opacity:.4; cursor:not-allowed}
+.seg .seg-div{width:1px; align-self:stretch; margin:5px 1px; background:var(--border-strong)}
+.seg button.ai{color:#3F6B00; font-weight:700}
+.seg button.ai:not(.active)::before{content:'✦ '; color:var(--fx-deep-green)}
+.seg button.ai.active{background:linear-gradient(180deg,#E4F7BD,var(--fx-green-1)); border-bottom-color:var(--fx-lime)}
 
 .tb-speed{display:flex; align-items:center; gap:7px}
 .tb-speed input[type=range]{width:76px}
@@ -136,6 +140,9 @@ button{font-family:inherit}
 .schematic-panel{flex:0 0 auto}
 .schematic-panel .panel-b{padding:8px 8px 4px}
 .tag{background:var(--fx-green-1); color:var(--fx-deep-green); font-size:11px; font-weight:600; padding:2px 9px; border-radius:3px; letter-spacing:0}
+.info-i{display:inline-grid; place-items:center; width:15px; height:15px; border:1px solid var(--border-strong); border-radius:50%;
+  color:var(--text-2); font-size:10px; font-style:italic; font-family:Georgia,serif; cursor:help; vertical-align:1px}
+.info-i:hover{background:var(--fx-green-1); color:var(--fx-deep-green); border-color:var(--fx-green-2)}
 
 /* ---------------- Controls ---------------- */
 .group-title{font-size:10px; letter-spacing:1.4px; color:var(--text-3); margin:2px 0 9px; text-transform:uppercase; font-weight:600}

@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=21';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=21';
+import { t } from './i18n.js?v=22';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=22';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -29,18 +29,18 @@ const DIST_LABEL = {
   fuel_lhv: () => t('燃料热值漂移', 'Fuel heating-value shift', '燃料発熱量ドリフト'),
 };
 
-// The economic reward each RL policy optimizes (mirrors aiogym/env.py ECON). Per step:
-// reward = w_value·value − w_energy·energy(kW) − w_viol·soft-band-violation.
+// The PRICED objective each RL policy optimizes (mirrors aiogym/env.py ECON and the
+// scoring panel — same numbers everywhere): profit ¥/h = value − energy×price − penalty.
 const REWARD_FN = {
-  cstr:      { zh: 'r = 900·产量 − 0.4·冷却功率(kW) − 8·超温(T>88°C)', en: 'r = 900·prod − 0.4·cooling(kW) − 8·over(T>88°C)', ja: 'r = 900·生産量 − 0.4·冷却出力(kW) − 8·過温(T>88°C)',
-               nZh: '最大化产量(贴 88°C 安全边界,92°C 失控);冷却为成本,越界软罚。', nEn: 'Max production hugging the 88°C safe edge (92°C runaway); cooling is cost; soft over-cap penalty.', nJa: '88°C の安全限界ギリギリで生産量を最大化(92°C で暴走);冷却はコスト、超過は軟ペナルティ。' },
-  cascade:   { zh: 'r = −0.9·加热功率(kW) − 6·欠温(罐温 < 33/46/58°C)', en: 'r = −0.9·heat(kW) − 6·under(tank T < 33/46/58°C)', ja: 'r = −0.9·加熱出力(kW) − 6·温度不足(タンク温度 < 33/46/58°C)',
-               nZh: '达标(温度≥下限)前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec (temps ≥ lower band).', nJa: '規格達成(温度 ≥ 下限)を前提に加熱エネルギーを最小化。' },
-  quadruple: { zh: 'r = −0.9·加热功率(kW) − 6·欠温(温度 < 46/46/32/32°C)', en: 'r = −0.9·heat(kW) − 6·under(T < 46/46/32/32°C)', ja: 'r = −0.9·加熱出力(kW) − 6·温度不足(温度 < 46/46/32/32°C)',
-               nZh: '达标前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec.', nJa: '規格達成を前提に加熱エネルギーを最小化。' },
-  hvac:      { zh: 'r = −1.2·功率(kW) − 7·越界(室温 ∉ [20,24]°C)', en: 'r = −1.2·power(kW) − 7·band(T ∉ [20,24]°C)', ja: 'r = −1.2·出力(kW) − 7·範囲外(室温 ∉ [20,24]°C)',
-               nZh: '室温维持在 20–24°C 舒适区内,最省冷/热功率。', nEn: 'Keep rooms in the 20–24°C comfort band at minimum power.', nJa: '室温を 20–24°C の快適域に保ちつつ冷暖房出力を最小化。' },
-  heater:    { zh: 'r = −0.005·燃料功率(kW) − 30·越带(出口 ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)', en: 'r = −0.005·fired duty(kW) − 30·band(T_out ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)', ja: 'r = −0.005·燃料出力(kW) − 30·帯域外(出口 ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)',
+  cstr:      { zh: '利润(¥/h) = 1575·产量 − 0.7·冷却功率(kW) − 14·超温(T>88°C)', en: 'profit(¥/h) = 1575·prod − 0.7·cooling(kW) − 14·over(T>88°C)', ja: '利益(¥/h) = 1575·生産量 − 0.7·冷却出力(kW) − 14·過温(T>88°C)',
+               nZh: '最大化产量(贴 88°C 安全边界,92°C 失控);冷却为成本,越界按罚价扣。', nEn: 'Max production hugging the 88°C safe edge (92°C runaway); cooling is cost; over-cap billed at the penalty rate.', nJa: '88°C の安全限界ギリギリで生産量を最大化(92°C で暴走);冷却はコスト、超過はペナルティ課金。' },
+  cascade:   { zh: '成本(¥/h) = 0.7·加热功率(kW) + 29·欠温(罐温 < 34/48/60°C)', en: 'cost(¥/h) = 0.7·heat(kW) + 29·under(tank T < 34/48/60°C)', ja: 'コスト(¥/h) = 0.7·加熱出力(kW) + 29·温度不足(タンク温度 < 34/48/60°C)',
+               nZh: '达标(温度≥下限)前提下电费最省。', nEn: 'Cheapest electricity subject to on-spec (temps ≥ lower band).', nJa: '規格達成(温度 ≥ 下限)を前提に電気代を最小化。' },
+  quadruple: { zh: '成本(¥/h) = 0.7·加热功率(kW) + 29·欠温(温度 < 46/46/32/32°C)', en: 'cost(¥/h) = 0.7·heat(kW) + 29·under(T < 46/46/32/32°C)', ja: 'コスト(¥/h) = 0.7·加熱出力(kW) + 29·温度不足(温度 < 46/46/32/32°C)',
+               nZh: '达标前提下电费最省。', nEn: 'Cheapest electricity subject to on-spec.', nJa: '規格達成を前提に電気代を最小化。' },
+  hvac:      { zh: '成本(¥/h) = 0.7·功率(kW) + 8.2·越界(室温 ∉ [20,24]°C)', en: 'cost(¥/h) = 0.7·power(kW) + 8.2·band(T ∉ [20,24]°C)', ja: 'コスト(¥/h) = 0.7·出力(kW) + 8.2·範囲外(室温 ∉ [20,24]°C)',
+               nZh: '室温维持在 20–24°C 舒适区内,电费最省。', nEn: 'Keep rooms in the 20–24°C comfort band at minimum electricity.', nJa: '室温を 20–24°C の快適域に保ちつつ電気代を最小化。' },
+  heater:    { zh: '成本(¥/h) = 0.35·燃料功率(kW) + 2100·越带(出口 ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)', en: 'cost(¥/h) = 0.35·fired duty(kW) + 2100·band(T_out ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)', ja: 'コスト(¥/h) = 0.35·燃料出力(kW) + 2100·帯域外(出口 ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)',
                nZh: 'RL 在线调出口温度 SP(贴规格下沿)+ O₂ SP(贴低氧边缘):都省燃料,但热值/负荷波动时要留裕量——固定 SP 两头吃亏。', nEn: 'RL trims the T_out SP (ride the spec edge) + O₂ SP (low excess air): both save fuel, but LHV/load swings demand margin — fixed SPs lose either way.', nJa: 'RL が出口温度 SP(規格下限側)と O₂ SP(低過剰空気)をオンライン調整:どちらも省燃料、だが発熱量・負荷変動時は余裕が必要——固定 SP は両損。' },
 };
 
@@ -150,18 +150,22 @@ export function buildControls(bus, meta, catalog) {
     w.append(h('div', { class: 'group-title' }, t('APC 配置', 'APC setup', 'APC 設定')));
     w.append(h('div', { class: 'rl-status' }, t(`CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · 预测 ${cfg.P ?? '?'} 步 · 周期 ${cfg.Ts ?? '?'}s`, `CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · horizon ${cfg.P ?? '?'} · Ts ${cfg.Ts ?? '?'}s`, `CV ${cfg.nCV ?? '?'} · MV ${cfg.nMV ?? '?'} · 予測 ${cfg.P ?? '?'} ステップ · 周期 ${cfg.Ts ?? '?'}s`)));
 
-    // CV setpoints (the controlled levels + every temperature)
+    // CV setpoints (controlled levels + every temperature); ranges/labels come from
+    // metadata.sp_spec when the model provides them (the heater's O₂% / 370 °C)
+    const spec2 = meta.sp_spec || {};
+    const lv2 = spec2.level || { label: ['CV 设定 · 液位 (m)', 'CV setpoints · level (m)', 'CV 設定値 · 液位 (m)'], min: 0, max: 0.8, step: 0.01 };
+    const tv2 = spec2.temp || { label: ['CV 设定 · 温度 (°C)', 'CV setpoints · temp (°C)', 'CV 設定値 · 温度 (°C)'], min: 10, max: 90, step: 1 };
     if (ctrl.length) {
-      w.append(h('div', { class: 'group-title' }, t('CV 设定 · 液位 (m)', 'CV setpoints · level (m)', 'CV 設定値 · 液位 (m)')));
+      w.append(h('div', { class: 'group-title' }, spec2.level ? t(...lv2.label) : t('CV 设定 · 液位 (m)', 'CV setpoints · level (m)', 'CV 設定値 · 液位 (m)')));
       ctrl.forEach((idx) => {
-        const inp = h('input', { type: 'number', step: 0.01, min: 0, max: 0.8, value: (sp.h_sp[idx] ?? 0.4).toFixed(2), onchange: sendSP });
+        const inp = h('input', { type: 'number', step: lv2.step, min: lv2.min, max: lv2.max, value: (sp.h_sp[idx] ?? lv2.min).toFixed(lv2.step < 0.1 ? 2 : 1), onchange: sendSP });
         inp.dataset.hsp = idx;
         w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[idx]), inp, h('span')));
       });
     }
-    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('CV 设定 · 温度 (°C)', 'CV setpoints · temp (°C)', 'CV 設定値 · 温度 (°C)')));
+    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, spec2.temp ? t(...tv2.label) : t('CV 设定 · 温度 (°C)', 'CV setpoints · temp (°C)', 'CV 設定値 · 温度 (°C)')));
     for (let i = 0; i < n; i++) {
-      const inp = h('input', { type: 'number', step: 1, min: 10, max: 90, value: (sp.t_sp[i] ?? 50).toFixed(0), onchange: sendSP });
+      const inp = h('input', { type: 'number', step: tv2.step, min: tv2.min, max: tv2.max, value: (sp.t_sp[i] ?? 50).toFixed(0), onchange: sendSP });
       inp.dataset.tsp = i;
       w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[i]), inp, h('span')));
     }

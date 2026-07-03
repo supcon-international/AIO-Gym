@@ -1,11 +1,11 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=21';
-import { buildSchematic } from './schematic.js?v=21';
-import { buildCharts } from './charts.js?v=21';
-import { buildControls } from './controls.js?v=21';
-import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=21';
+import { Engine, CATALOG } from './sim/engine.js?v=22';
+import { buildSchematic } from './schematic.js?v=22';
+import { buildCharts } from './charts.js?v=22';
+import { buildControls } from './controls.js?v=22';
+import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=22';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;
@@ -43,6 +43,8 @@ function relayout() {
 
 function rebuildUI(f) {
   meta = f.meta;
+  const inf = $('#pid-info');
+  if (inf) { inf.hidden = !meta.blurb; inf.title = meta.blurb || ''; }
   if (charts) charts.destroy();
   schematic = buildSchematic($('#schematic-host'), meta);
   charts = buildCharts($('#charts-host'), meta.trends, meta.n_tanks);
@@ -139,10 +141,13 @@ function renderScore(sc, ep) {
   const money = (v) => { const a = Math.abs(v); const d = a < 10 ? 1 : 0; return (v < 0 ? '−' : '') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
   const mcol = isProfit ? (rate >= 0 ? '#2E8B3D' : '#C0392B') : (better ? '#2E8B3D' : '#C77700');
   const tcol = sc.score >= 80 ? '#2E8B3D' : sc.score >= 55 ? '#C77700' : '#C0392B';
-  const vsTxt = better
-    ? t(`省 ${Math.abs(vsPct).toFixed(1)}%`, `${Math.abs(vsPct).toFixed(1)}% better`, `${Math.abs(vsPct).toFixed(1)}% 節約`)
-    : t(`多花 ${Math.abs(vsPct).toFixed(1)}%`, `${Math.abs(vsPct).toFixed(1)}% worse`, `${Math.abs(vsPct).toFixed(1)}% 超過`);
   const vsDelta = money(rate - (ec.base ?? 0));
+  // profit scenarios: percent breaks across the zero (PID loses money, RL earns —
+  // "164% saved" reads wrong), so state the absolute gap; costs keep the intuitive %.
+  const vsTxt = isProfit
+    ? (better ? t(`多赚 ${vsDelta} ¥/h`, `+${vsDelta} ¥/h`, `+${vsDelta} ¥/h`) : t(`少赚 ${vsDelta} ¥/h`, `${vsDelta} ¥/h`, `${vsDelta} ¥/h`))
+    : (better ? t(`省 ${Math.abs(vsPct).toFixed(1)}%`, `${Math.abs(vsPct).toFixed(1)}% better`, `${Math.abs(vsPct).toFixed(1)}% 節約`)
+              : t(`多花 ${Math.abs(vsPct).toFixed(1)}%`, `${Math.abs(vsPct).toFixed(1)}% worse`, `${Math.abs(vsPct).toFixed(1)}% 超過`));
   const econKpi = isProfit
     ? kpi(t('产量', 'Production', '生産量'), ec.production, 'mmol/s')
     : kpi(t('能耗功率', 'Power', '消費電力'), k.avg_power_kw, 'kW');
@@ -157,7 +162,7 @@ function renderScore(sc, ep) {
   }).join('');
   $('#score-body').innerHTML = `
     <div class="score-big"><span class="score-num" style="color:${mcol}">${money(shown)}</span><span class="score-unit">¥/h ${isProfit ? t('利润', 'profit', '利益') : t('运行成本', 'operating cost', '運転コスト')}</span></div>
-    <div class="score-sub" style="font-size:12px;margin-top:2px">${t('vs PID 基准', 'vs PID baseline', 'PID 基準比')}(${money(ec.base ?? 0)}):<b style="color:${better ? '#2E8B3D' : '#C0392B'}"> ${vsTxt}</b>(${better ? '' : '+'}${vsDelta} ¥/h)</div>
+    <div class="score-sub" style="font-size:12px;margin-top:2px">${t('vs PID 基准', 'vs PID baseline', 'PID 基準比')}(${money(ec.base ?? 0)}):<b style="color:${better ? '#2E8B3D' : '#C0392B'}"> ${vsTxt}</b>${isProfit ? '' : `(${better ? '−' : '+'}${money(Math.abs(rate - (ec.base ?? 0)))} ¥/h)`}</div>
     <div class="score-bar"><i style="width:${es}%;background:${mcol}"></i></div>
     <div class="score-sub">${t('回合', 'Episode', 'エピソード')} #${ep.n} · ${ep.elapsed}/${ep.length}s${last ? ` · ${t('上回合', 'last', '前回')} <b>${money(last.profit)}</b>` : ''}</div>
     ${spark ? `<div class="ep-spark">${spark}</div>` : ''}
