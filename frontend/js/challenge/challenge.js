@@ -1,12 +1,13 @@
-// Challenge mode — Human vs RL, three picks: exothermic CSTR, two-zone HVAC, or
-// the heated-tank cascade. You hand-control the plant; an RL ghost runs the SAME
-// seeded disturbances on its OWN identical plant, side by side, so you can watch
-// it in real time. Anti-idle scoring: CSTR rewards production (idle = 0); HVAC /
-// cascade score = on-spec% × energy-factor (idle drifts off-spec → ~0). Reuses the
-// sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=19';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=19';
-import { buildSchematic } from '../schematic.js?v=19';
+// Challenge mode — Human vs RL across four plants (CSTR / HVAC / fired heater /
+// tank cascade). You hand-control the plant; an RL ghost runs the SAME seeded
+// disturbances on its OWN identical plant, side by side. ONE money yardstick for
+// every level (mirrors the sandbox's priced economics): profit-rate in ¥/h =
+// product credit − energy×price − off-spec penalty. Costs are negative; HIGHER
+// always wins. Anti-idle: idling drifts off-spec and the penalty dwarfs the
+// energy saved. Reuses the sandbox engine + animated P&ID.
+import { Engine } from '../sim/engine.js?v=21';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=21';
+import { buildSchematic } from '../schematic.js?v=21';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
@@ -32,7 +33,7 @@ const LEVELS = {
     ],
     autoLevel: false,
     disturb: { type: 'cold_inlet', warmBias: 0.5, mag: [4, 9], every: [14, 30], dur: [9, 18] },
-    metric: 'production', compare: 'prod', scoreRef: [0, 7],
+    money: 'profit', compare: 'prod',
     bands: [[null, 88]],
   },
   hvac: {
@@ -49,7 +50,7 @@ const LEVELS = {
     ],
     autoLevel: false,
     disturb: { type: 'ambient', warmBias: 0.5, mag: [6, 12], every: [13, 28], dur: [11, 21] },
-    metric: 'comfort', compare: 'energy', bands: [[20, 24], [20, 24]], energyCap: 0.6,
+    money: 'cost', compare: 'energy', bands: [[20, 24], [20, 24]],
   },
   heater: {
     scenario: 'heater', sub: 'refinery fired heater',
@@ -58,14 +59,14 @@ const LEVELS = {
     blurb: () => t('把出口温度稳在 370°C:火大费燃料,风大偷热,风太小 → 低氧联锁切燃料。燃料热值还会漂移。',
       'Hold the outlet at 370°C: more fuel costs, excess air steals heat, too little air trips the burner. Fuel quality drifts too.',
       '出口を 370°C に保つ:燃料は高い、過剰空気は熱を奪う、空気不足はバーナー遮断。燃料品質も変動。'),
-    start: [757, 368, 2.8],
+    start: [700, 364, 3.4],
     controls: [
-      { kind: 'heater', idx: 0, zh: '燃料', en: 'Fuel', ja: '燃料', hint: () => t('= 成本', '= cost', '= コスト'), cls: 'heat', init: 64 },
-      { kind: 'valve', idx: 0, zh: '风门', en: 'Air damper', ja: 'ダンパー', cls: 'cool', init: 31 },
+      { kind: 'heater', idx: 0, zh: '燃料', en: 'Fuel', ja: '燃料', hint: () => t('= 成本', '= cost', '= コスト'), cls: 'heat', init: 45 },
+      { kind: 'valve', idx: 0, zh: '风门', en: 'Air damper', ja: 'ダンパー', cls: 'cool', init: 55 },
     ],
     autoLevel: false,
     disturb: { type: 'fuel_lhv', warmBias: 0.5, mag: [0.08, 0.15], every: [14, 28], dur: [12, 22] },
-    metric: 'comfort', compare: 'energy', bands: [[362, 378]], energyCap: 7000,
+    money: 'cost', compare: 'energy', bands: [[362, 378]],
   },
   cascade: {
     scenario: 'cascade', sub: 'heated-tank cascade',
@@ -76,15 +77,13 @@ const LEVELS = {
       '3タンクを各温度へ(液位は自動)。規格内で加熱を最小に。'),
     start: [0.42, 36, 0.42, 50, 0.42, 64],
     controls: [
-      { kind: 'heater', idx: 0, zh: '加热·T1', en: 'Heat · T1', ja: '加熱·T1', cls: 'heat', init: 28 },
-      { kind: 'heater', idx: 1, zh: '加热·T2', en: 'Heat · T2', ja: '加熱·T2', cls: 'heat', init: 30 },
-      { kind: 'heater', idx: 2, zh: '加热·T3', en: 'Heat · T3', ja: '加熱·T3', cls: 'heat', init: 33 },
+      { kind: 'heater', idx: 0, zh: '加热·T1', en: 'Heat · T1', ja: '加熱·T1', cls: 'heat', init: 14 },
+      { kind: 'heater', idx: 1, zh: '加热·T2', en: 'Heat · T2', ja: '加熱·T2', cls: 'heat', init: 16 },
+      { kind: 'heater', idx: 2, zh: '加热·T3', en: 'Heat · T3', ja: '加熱·T3', cls: 'heat', init: 18 },
     ],
     autoLevel: true,
     disturb: { type: 'cold_inlet', warmBias: 0.4, mag: [4, 9], every: [15, 30], dur: [10, 18] },
-    // economic profit-rate (energy + soft-band): RL rides the band to save energy; idle
-    // (cold) and over-heating both bleed profit. "on-spec" lamp uses the lower bounds.
-    metric: 'production', compare: 'energy', scoreRef: [-185, -108], bands: [[34, null], [48, null], [60, null]],
+    money: 'cost', compare: 'energy', bands: [[34, null], [48, null], [60, null]],
   },
 };
 
@@ -141,6 +140,9 @@ class Challenge {
       this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata());
       this._buildControls();
       document.getElementById('cd-sub').textContent = this.cfg.sub;
+      const cap = document.querySelector('.cd-vs-cap');
+      if (cap) cap.textContent = this.cfg.money === 'profit' ? t('利润 ¥/h · 高者胜', 'Profit ¥/h · higher wins', '利益 ¥/h · 高い方が勝ち')
+                                                              : t('运行成本 ¥/h · 低者胜', 'Cost ¥/h · lower wins', '運転コスト ¥/h · 低い方が勝ち');
     }
     if (this.phase === 'select') this.showSelect();
     else if (this.phase === 'done') this._showResult();
@@ -159,6 +161,9 @@ class Challenge {
     for (const e of [this.human, this.ghost]) { e.handleCommand({ type: 'set_auto_events', on: false }); e.running = false; }
     this.ghost.setMode('rl');
     document.getElementById('cd-sub').textContent = this.cfg.sub;
+    const cap = document.querySelector('.cd-vs-cap');
+    if (cap) cap.textContent = this.cfg.money === 'profit' ? t('利润 ¥/h · 高者胜', 'Profit ¥/h · higher wins', '利益 ¥/h · 高い方が勝ち')
+                                                            : t('运行成本 ¥/h · 低者胜', 'Cost ¥/h · lower wins', '運転コスト ¥/h · 低い方が勝ち');
     this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata());
     this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata());
     this._buildControls();
@@ -223,7 +228,7 @@ class Challenge {
 
     this.schY.update(this.human.telemetry());
     this.schR.update(this.ghost.telemetry());
-    this.board.update(this._score(this.human, this.youOk), this._score(this.ghost, this.rlOk));
+    this.board.update(this._score(this.human), this._score(this.ghost), this.cfg.money);
     this._updateCompare();
 
     const remain = Math.max(0, DURATION_REAL - this.tickN * TICK);
@@ -232,16 +237,10 @@ class Challenge {
     if (this.simT >= SIM_TOTAL) this._end();
   }
 
-  // 0-100 challenge score. production: profit-rate mapped over [idle, ideal].
-  // comfort: on-spec fraction × energy factor (idle → off-spec → ~0; on-spec & thrifty → high).
-  _score(eng, okAccum) {
-    if (this.cfg.metric === 'production') {
-      const rt = eng.score.report().econ.profit_rate, [lo, hi] = this.cfg.scoreRef;
-      return clamp(100 * (rt - lo) / (hi - lo), 0, 100);
-    }
-    const onSpec = okAccum / Math.max(1, this.steps);
-    const ePen = clamp(eng.score.energy / this.cfg.energyCap, 0, 0.45);
-    return clamp(100 * onSpec * (1 - ePen), 0, 100);
+  // The head-to-head metric: the engine's priced profit-rate (¥/h). Costs are
+  // negative — higher is always better, one yardstick for every level.
+  _score(eng) {
+    return eng.score.report().econ.profit_rate;
   }
 
   _updateCompare() {
@@ -281,7 +280,7 @@ class Challenge {
   }
 
   _notify(e) {
-    let msg, danger = e.warm && this.cfg.metric === 'production';
+    let msg, danger = e.warm && this.cfg.money === 'profit';
     if (this.cfg.disturb.type === 'ambient') {
       const out = (15 + e.params.value).toFixed(0);
       msg = e.warm ? t(`室外升温到 ${out}° · 该开冷气`, `Outdoor up to ${out}° · cool down`, `室外 ${out}°・冷房を`)
@@ -301,9 +300,9 @@ class Challenge {
     clearInterval(this.timer); this.timer = null;
     this.human.running = this.ghost.running = false;
     this.phase = 'done';
-    const you = this._score(this.human, this.youOk), rl = this._score(this.ghost, this.rlOk);
+    const you = this._score(this.human), rl = this._score(this.ghost);
     this._result = {
-      metric: this.cfg.metric, compare: this.cfg.compare, you, rl,
+      money: this.cfg.money, compare: this.cfg.compare, you, rl,
       youKwh: this.human.score.energy, rlKwh: this.ghost.score.energy,
       youProd: this.human.score.prod * 1000, rlProd: this.ghost.score.prod * 1000,
       youOk: Math.round(100 * this.youOk / Math.max(1, this.steps)),

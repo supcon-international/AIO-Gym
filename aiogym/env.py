@@ -56,25 +56,28 @@ PLANT_REGIME = {
 #   temp_band : per-tank (lo, hi) acceptance window  (None = unconstrained side)
 #   value     : "production" (CSTR: hug the drifting safe-temp edge) | "none" (min-energy)
 #   w_*       : reward weights (value reward, energy cost /kW, band violation, runaway)
+# PRICED economics (2026-07 rework): weights are now REAL MONEY RATES, so the
+# per-step "profit" IS ¥/h and the UI can show operating cost / profit directly.
+#   w_energy : ¥/h per kW   — electricity 0.7 ¥/kWh; heater fuel gas 97 ¥/GJ = 0.35 ¥/h·kW
+#   w_viol   : ¥/h per violation-unit (off-spec contractual penalty, scaled from the
+#              old tuning by the SAME factor as w_energy — an order-preserving linear
+#              rescale, so previously-trained policies remain optimal, no retrain)
+#   w_value  : ¥ per product unit (CSTR fine-chemical credit, same rescale)
+# Bands unchanged. 工况 drift still moves the optimum; fixed tuning stays suboptimal.
 ECON = {
-    # Heating scenarios: temps MUST stay in an on-spec window (strong w_viol so the
-    # plant is actually controlled — not left cold); within the window minimise energy
-    # -> RL hugs the efficient lower edge while PID holds the higher SP. 工况 (feed-temp
-    # / efficiency drift) moves the energy-optimal action so fixed tuning is suboptimal.
     "cascade":   {"temp_band": [(34, 44), (48, 58), (60, 72)], "level_band": [(0.32, 0.58)] * 3,
-                  "value": "none", "w_value": 0.0, "w_energy": 0.6, "w_viol": 25.0},
+                  "value": "none", "w_value": 0.0, "w_energy": 0.7, "w_viol": 29.0},
     "quadruple": {"temp_band": [(46, 58), (46, 58), (32, 46), (32, 46)], "level_band": [(0.32, 0.56)] * 2,
-                  "value": "none", "w_value": 0.0, "w_energy": 0.6, "w_viol": 25.0},
+                  "value": "none", "w_value": 0.0, "w_energy": 0.7, "w_viol": 29.0},
     # CSTR: maximise production hugging the drifting safe-temp edge (value-driven).
     "cstr":      {"temp_band": [(None, 88.0)], "level_band": [],
-                  "value": "production", "w_value": 900.0, "w_energy": 0.4, "w_viol": 8.0},
+                  "value": "production", "w_value": 1575.0, "w_energy": 0.7, "w_viol": 14.0},
     # HVAC: hold the comfort band, ride the outdoor-favorable edge to save energy.
     "hvac":      {"temp_band": [(20.0, 24.0), (20.0, 24.0)], "level_band": [],
-                  "value": "none", "w_value": 0.0, "w_energy": 1.2, "w_viol": 14.0},
-    # fired heater: hold T_out on-spec at minimum fired duty; O2 band keeps economics
-    # off the low-O2 trip edge (level_scale: O2 violations are in %, not meters)
+                  "value": "none", "w_value": 0.0, "w_energy": 0.7, "w_viol": 8.2},
+    # fired heater: fuel gas 97 ¥/GJ; off-spec outlet = downstream unit turndown.
     "heater":    {"temp_band": [(362.0, 378.0)], "level_band": [(1.6, 5.5)],
-                  "value": "none", "w_value": 0.0, "w_energy": 0.005, "w_viol": 30.0, "level_scale": 1.0},
+                  "value": "none", "w_value": 0.0, "w_energy": 0.35, "w_viol": 2100.0, "level_scale": 1.0},
 }
 
 # Supervisory (RL-on-PID / RTO) action layout: RL outputs SETPOINTS that the inner
@@ -106,6 +109,8 @@ class AIOGymNativeEnv(gym.Env):
         self.episode_steps = int(episode_steps)
         self.reward_mode = reward_mode
         self.reward_scale = reward_scale          # keep Q-magnitudes sane -> stable critic
+        # NOTE: ECON weights are now REAL ¥/h rates, so economic rewards are larger
+        # (heater ~1e4). When (re)training, scale per scenario, e.g. heater 3e-4.
         self.dynamic = dynamic
         self.randomize_plant = randomize_plant    # per-episode 工况 (operating-regime) variation
         self.plant_drift = plant_drift            # slow within-episode parameter drift

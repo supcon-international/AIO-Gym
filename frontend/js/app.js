@@ -1,11 +1,11 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=19';
-import { buildSchematic } from './schematic.js?v=19';
-import { buildCharts } from './charts.js?v=19';
-import { buildControls } from './controls.js?v=19';
-import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=19';
+import { Engine, CATALOG } from './sim/engine.js?v=21';
+import { buildSchematic } from './schematic.js?v=21';
+import { buildCharts } from './charts.js?v=21';
+import { buildControls } from './controls.js?v=21';
+import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=21';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;
@@ -130,38 +130,45 @@ function updateTopbar(f) {
 function renderScore(sc, ep) {
   if (!sc) return;
   const k = sc.kpis, ec = sc.econ || {};
-  const es = sc.econ_score ?? 0;
-  const ecol = es >= 80 ? '#2E8B3D' : es >= 55 ? '#C77700' : '#C0392B';
+  const isProfit = ec.value === 'production';
+  const rate = ec.profit_rate ?? 0;
+  const vsPct = ec.vs_base_pct ?? 0;               // + = better than the PID baseline
+  const better = vsPct >= 0;
+  // money formatting: cost scenarios show a positive "cost" figure (|rate|)
+  const shown = isProfit ? rate : Math.abs(rate);
+  const money = (v) => { const a = Math.abs(v); const d = a < 10 ? 1 : 0; return (v < 0 ? '−' : '') + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  const mcol = isProfit ? (rate >= 0 ? '#2E8B3D' : '#C0392B') : (better ? '#2E8B3D' : '#C77700');
   const tcol = sc.score >= 80 ? '#2E8B3D' : sc.score >= 55 ? '#C77700' : '#C0392B';
-  // Economic score is the headline = the PER-EPISODE AVERAGE (one episode = 600 s sim,
-  // ~1 min at 10x). Control KPI (loop regulation quality) is secondary. Economic
-  // primitive is production (reactor) or power draw.
-  const econKpi = ec.value === 'production'
+  const vsTxt = better
+    ? t(`省 ${Math.abs(vsPct).toFixed(1)}%`, `${Math.abs(vsPct).toFixed(1)}% better`, `${Math.abs(vsPct).toFixed(1)}% 節約`)
+    : t(`多花 ${Math.abs(vsPct).toFixed(1)}%`, `${Math.abs(vsPct).toFixed(1)}% worse`, `${Math.abs(vsPct).toFixed(1)}% 超過`);
+  const vsDelta = money(rate - (ec.base ?? 0));
+  const econKpi = isProfit
     ? kpi(t('产量', 'Production', '生産量'), ec.production, 'mmol/s')
     : kpi(t('能耗功率', 'Power', '消費電力'), k.avg_power_kw, 'kW');
   ep = ep || { n: 1, elapsed: 0, length: 600, history: [] };
   const hist = ep.history || [];
   const last = hist[hist.length - 1];
-  const recent = hist.slice(-5);
-  const avg = recent.length ? Math.round(recent.reduce((a, b) => a + b.econ, 0) / recent.length) : null;
-  // sparkline of recent episode economic scores
-  const spark = hist.slice(-12).map((s) => {
-    const c = s.econ >= 80 ? '#2E8B3D' : s.econ >= 55 ? '#C77700' : '#C0392B';
-    return `<i title="${s.econ}" style="height:${Math.max(6, s.econ)}%;background:${c}"></i>`;
+  // sparkline of recent episodes: bar height = episode ¥/h mapped over [worst, best]
+  const es = sc.econ_score ?? 0;                    // internal 0-100 mapping still drives the spark/bar
+  const spark = hist.slice(-12).map((s2) => {
+    const c = s2.econ >= 80 ? '#2E8B3D' : s2.econ >= 55 ? '#C77700' : '#C0392B';
+    return `<i title="${money(s2.profit)} ¥/h" style="height:${Math.max(6, s2.econ)}%;background:${c}"></i>`;
   }).join('');
   $('#score-body').innerHTML = `
-    <div class="score-big"><span class="score-num" style="color:${ecol}">${es.toFixed(0)}</span><span class="score-unit">/ 100 ${t('经济得分', 'Economic', '経済スコア')}</span></div>
-    <div class="score-bar"><i style="width:${es}%;background:${ecol}"></i></div>
-    <div class="score-sub">${t('回合', 'Episode', 'エピソード')} #${ep.n} · ${ep.elapsed}/${ep.length}s${last ? ` · ${t('上回合', 'last', '前回')} <b>${last.econ}</b>` : ''}${avg != null ? ` · ${t('近' + recent.length + '回合均', 'avg' + recent.length, '直近' + recent.length + '回平均')} <b>${avg}</b>` : ''}</div>
+    <div class="score-big"><span class="score-num" style="color:${mcol}">${money(shown)}</span><span class="score-unit">¥/h ${isProfit ? t('利润', 'profit', '利益') : t('运行成本', 'operating cost', '運転コスト')}</span></div>
+    <div class="score-sub" style="font-size:12px;margin-top:2px">${t('vs PID 基准', 'vs PID baseline', 'PID 基準比')}(${money(ec.base ?? 0)}):<b style="color:${better ? '#2E8B3D' : '#C0392B'}"> ${vsTxt}</b>(${better ? '' : '+'}${vsDelta} ¥/h)</div>
+    <div class="score-bar"><i style="width:${es}%;background:${mcol}"></i></div>
+    <div class="score-sub">${t('回合', 'Episode', 'エピソード')} #${ep.n} · ${ep.elapsed}/${ep.length}s${last ? ` · ${t('上回合', 'last', '前回')} <b>${money(last.profit)}</b>` : ''}</div>
     ${spark ? `<div class="ep-spark">${spark}</div>` : ''}
-    <div class="score-sub">${t('收益率', 'Profit', '収益率')} <b>${ec.profit_rate ?? 0}</b>/${t('步', 'step', 'ステップ')} · ${t('控制 KPI', 'Control KPI', '制御 KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
+    <div class="score-sub">${t('控制 KPI', 'Control KPI', '制御 KPI')} <b style="color:${tcol}">${sc.score.toFixed(0)}</b>/100</div>
     <div class="kpi-grid">
       ${econKpi}${kpi(t('累计能耗', 'Energy', '累積エネルギー'), k.energy_kwh, 'kWh')}
       ${kpi(t('联锁时长', 'Interlock', 'インターロック時間'), k.interlock_seconds, 's')}${kpi(t('跳闸次数', 'Trips', 'トリップ回数'), k.trip_events, t('次', '×', '回'))}
     </div>
-    <div class="hint" style="margin-top:9px">${t('每回合 = 600s 仿真(10×约 1 分钟);经济得分 = 本回合平均「价值−能耗」实现度。',
-      'Each episode = 600 s sim (~1 min at 10x); economic score = the episode-average value−energy realization.',
-      '1エピソード = 600s シミュレーション（10×で約1分）；経済スコア = 本エピソード平均の「価値−エネルギー」達成度。')}</div>`;
+    <div class="hint" style="margin-top:9px">${t('成本 = 能耗×单价 + 越界罚 − 产品收入(电 0.7¥/kWh · 燃料气 97¥/GJ · 产品/罚则为折算价)。每回合 = 600s 仿真,按回合平均计。',
+      'Cost = energy×price + off-spec penalty − product credit (power 0.7 ¥/kWh · fuel gas 97 ¥/GJ · product/penalty are indicative). Episode = 600 s sim, episode-average.',
+      'コスト = エネルギー×単価 + 規格外ペナルティ − 製品収入(電力 0.7¥/kWh · 燃料ガス 97¥/GJ · 製品/罰則は換算値)。1エピソード = 600s、エピソード平均。')}</div>`;
 }
 const kpi = (k, v, u) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}<small> ${u}</small></div></div>`;
 

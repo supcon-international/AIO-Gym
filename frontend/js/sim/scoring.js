@@ -10,21 +10,28 @@ const r = (v, d = 2) => +v.toFixed(d);
 // violation. Controlled vars have soft acceptance bands (not a fixed SP); within the
 // band, economics are optimised. This is the metric the RL policies actually optimise
 // — so a fixed-SP PID/MPC scores low here while the (工况-adaptive) RL scores high.
+// PRICED economics (mirrors aiogym/env.py ECON): the weights are REAL MONEY RATES,
+// so the per-step "profit" IS ¥/h and the UI shows operating cost / profit directly.
+//   w_energy ¥/h per kW — electricity 0.7 ¥/kWh; heater fuel gas 97 ¥/GJ = 0.35 ¥/h·kW
+//   w_viol   ¥/h per violation-unit (off-spec contractual penalty; old tuning × the
+//            same factor as w_energy — order-preserving, trained policies stay optimal)
+//   w_value  ¥ per product unit (CSTR fine-chemical credit)
 const ECON = {
-  cascade:   { temp_band: [[34, 44], [48, 58], [60, 72]], level_band: [[0.32, 0.58], [0.32, 0.58], [0.32, 0.58]], value: 'none', w_value: 0.0, w_energy: 0.6, w_viol: 25.0 },
-  quadruple: { temp_band: [[46, 58], [46, 58], [32, 46], [32, 46]], level_band: [[0.32, 0.56], [0.32, 0.56]], value: 'none', w_value: 0.0, w_energy: 0.6, w_viol: 25.0 },
-  cstr:      { temp_band: [[null, 88]], level_band: [], value: 'production', w_value: 900.0, w_energy: 0.4, w_viol: 8.0 },
-  hvac:      { temp_band: [[20, 24], [20, 24]], level_band: [], value: 'none', w_value: 0.0, w_energy: 1.2, w_viol: 14.0 },
-  // fired heater: hold T_out on-spec at minimum fired duty; the O₂ "level" band keeps
-  // economics off the low-O₂ trip edge. level_scale: O₂ violations are in %, not meters.
-  heater:    { temp_band: [[362, 378]], level_band: [[1.6, 5.5]], value: 'none', w_value: 0.0, w_energy: 0.005, w_viol: 30.0, level_scale: 1.0 },
+  cascade:   { temp_band: [[34, 44], [48, 58], [60, 72]], level_band: [[0.32, 0.58], [0.32, 0.58], [0.32, 0.58]], value: 'none', w_value: 0.0, w_energy: 0.7, w_viol: 29.0 },
+  quadruple: { temp_band: [[46, 58], [46, 58], [32, 46], [32, 46]], level_band: [[0.32, 0.56], [0.32, 0.56]], value: 'none', w_value: 0.0, w_energy: 0.7, w_viol: 29.0 },
+  cstr:      { temp_band: [[null, 88]], level_band: [], value: 'production', w_value: 1575.0, w_energy: 0.7, w_viol: 14.0 },
+  hvac:      { temp_band: [[20, 24], [20, 24]], level_band: [], value: 'none', w_value: 0.0, w_energy: 0.7, w_viol: 8.2 },
+  heater:    { temp_band: [[362, 378]], level_band: [[1.6, 5.5]], value: 'none', w_value: 0.0, w_energy: 0.35, w_viol: 2100.0, level_scale: 1.0 },
 };
+// Fixed-SP PID under nominal 工况 — the reference an operator/policy is judged against
+// ("vs PID baseline: saved x%"). Calibrated offline via aiogym (see baselines.py).
+const PID_BASE = { cascade: -213, quadruple: -151, cstr: -2.8, hvac: -2.5, heater: -12933 };
 // Per-scenario [worst, best] profit-rate (per control step) for a 0-100 economic score.
 // worst ≈ fixed-SP PID, best ≈ the economic optimum the RL targets (from aiogym/runs).
 // per-step profit-rate [worst, best] from aiogym/runs (supervisory RL vs PID/MPC).
 // Honest: RL clearly leads on cstr/hvac (real economic headroom); on cascade/quad it's
 // competitive (regulation problems where PID/MPC are near-optimal — no gaming).
-const ECON_REF = { cascade: [-260, -120], quadruple: [-185, -115], cstr: [-3.0, 1.2], hvac: [-9.0, -4.0], heater: [-250, -170] };
+const ECON_REF = { cascade: [-303, -140], quadruple: [-216, -134], cstr: [-5.3, 2.1], hvac: [-5.3, -2.3], heater: [-17500, -11900] };
 
 export class ScoreKeeper {
   constructor(model) { this.bind(model); }
@@ -34,6 +41,7 @@ export class ScoreKeeper {
     this.scenario = model.metadata ? model.metadata().scenario : 'cascade';
     this.econ = ECON[this.scenario] || ECON.cascade;
     this.econRef = ECON_REF[this.scenario] || ECON_REF.cascade;
+    this.pidBase = PID_BASE[this.scenario] ?? -100;
     this.lErrDiv = model.kpiLevelScale ? model.kpiLevelScale() : 1;   // level-err unit → meters (heater: O₂ %)
     this.reset();
   }
@@ -112,7 +120,8 @@ export class ScoreKeeper {
         avg_temp_err: r(avgT), avg_level_err_cm: r(avgL * 100), energy_kwh: r(this.energy, 3),
         avg_power_kw: r(avgP), excess_kwh: r(this.excess, 3), interlock_seconds: r(this.interlockSec, 1), trip_events: this.trips,
       },
-      econ: { score: r(econScore, 1), profit_rate: r(rate, 2), production: r(this.prod * 1000, 2), value: this.econ.value },
+      econ: { score: r(econScore, 1), profit_rate: r(rate, 2), production: r(this.prod * 1000, 2), value: this.econ.value,
+              base: this.pidBase, vs_base_pct: r(100 * (rate - this.pidBase) / Math.abs(this.pidBase), 1) },
       inst_temp_err: this.instT.map((x) => r(x)), inst_level_err: this.instL.map((x) => r(x, 3)),
     };
   }

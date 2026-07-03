@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=19';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=19';
+import { t } from './i18n.js?v=21';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=21';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
