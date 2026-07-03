@@ -12,16 +12,16 @@
 
 ---
 
-AIO-Gym turns four classic industrial control problems — a heated-tank cascade, the Johansson quadruple-tank, an exothermic CSTR, and a two-zone HVAC loop — into an interactive, real-time simulation. Drive it by hand, hand it to a PID or MPC controller, or let a reinforcement-learning policy run. The entire physics, control, and rendering stack runs client-side: open the page and it works — no server, no install. A parallel Python package (`aiogym/`) exposes the same plants as a Gymnasium environment with an NMPC oracle and parallel training, so policies trained offline drop straight back into the browser as ONNX.
+AIO-Gym turns five classic industrial control problems — a heated-tank cascade, the Johansson quadruple-tank, an exothermic CSTR, a two-zone HVAC loop, and a refinery fired heater — into an interactive, real-time simulation. Drive it by hand, hand it to a PID or MPC controller, or let a reinforcement-learning policy run. The entire physics, control, and rendering stack runs client-side: open the page and it works — no server, no install. A parallel Python package (`aiogym/`) exposes the same plants as a Gymnasium environment with an NMPC oracle and parallel training, so policies trained offline drop straight back into the browser as ONNX.
 
 ### Highlights
 
 - **Zero-install, zero-backend.** Pure static front-end; deploy to GitHub Pages or any static host.
-- **Four plants, four controllers.** Manual, decentralized PID, APC-style MPC, and supervisory RL — switch live.
+- **Five plants, four controllers.** Manual, decentralized PID, APC-style MPC, and supervisory RL — switch live.
 - **Economic, not just tracking.** Scored on an economic objective (value − energy − constraint violation), where a learned policy has real headroom over a fixed-setpoint PID/MPC.
 - **Honest realism.** Sensor noise / deadtime / lag / bias and actuator stiction / slew toggle on or off; disturbances and equipment faults fire automatically, with a pop-up when they do.
 - **Trilingual UI** (English / 中文 / 日本語) and an episodic KPI — one episode = 600 s of sim (≈ 1 min at 10×), scored as a per-episode average.
-- **[Challenge mode](challenge.html).** A mobile + desktop mini-game across three plants (CSTR / HVAC / tank cascade): hand-control your plant *beside* an RL ghost running the same disturbances — two live P&IDs, side by side — and try to out-score it. Anti-idle economic scoring: doing nothing loses.
+- **[Challenge mode](challenge.html).** A mobile + desktop mini-game across four plants (CSTR / HVAC / tank cascade / fired heater): hand-control your plant *beside* an RL ghost running the same disturbances — two live P&IDs, side by side — and try to out-score it. Anti-idle economic scoring: doing nothing loses.
 
 ### Scenarios
 
@@ -31,6 +31,7 @@ AIO-Gym turns four classic industrial control problems — a heated-tank cascade
 | **Quadruple-Tank (Johansson)** | Classic MIMO benchmark, cross-coupled pumps | A γ slider moves it into the *non-minimum-phase* regime where PID visibly struggles |
 | **Exothermic CSTR** | Reaction + cooling jacket | Too little cooling → *thermal runaway*; production is maximized by hugging the safety edge |
 | **Two-Zone HVAC** | Two rooms exchanging heat | Hold comfort against outdoor swings at minimum power |
+| **Fired Heater** | Refinery furnace: fuel + air damper | Hold the 370 °C outlet at minimum fuel — excess air steals heat, too little trips the burner on low O₂ |
 
 ### Control modes
 
@@ -43,7 +44,7 @@ AIO-Gym turns four classic industrial control problems — a heated-tank cascade
 
 ### The training stack (`aiogym/`)
 
-The same four plants are a native **Gymnasium** environment, so you can train without the browser:
+The same five plants are a native **Gymnasium** environment, so you can train without the browser:
 
 - **NMPC oracle** — a CasADi / IPOPT nonlinear MPC (do-mpc style) as the perfect-model upper bound, the way [PC-Gym](https://github.com/MaximilianB2/pc-gym) uses it.
 - **Parallel training** — Stable-Baselines3 SAC/PPO over `SubprocVecEnv`, one plant per CPU core (CPU beats MPS for these small MLPs).

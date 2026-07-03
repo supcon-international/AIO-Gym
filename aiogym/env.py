@@ -44,6 +44,8 @@ PLANT_REGIME = {
     "quadruple": {"ua_loss": (0.4, 2.6), "heater_max": (0.6, 1.15), "pump_flow_max": (0.7, 1.3), "a_out": (0.8, 1.25)},
     "cstr":      {"Uc": (0.5, 1.6), "k0": (0.55, 1.7), "Hr": (0.85, 1.2)},
     "hvac":      {"Kc": (0.5, 1.7), "Ko": (0.5, 1.9), "C": (0.7, 1.4), "Pmax": (0.7, 1.2)},
+    # fired heater 工况: fuel-gas quality (LHV), feed throughput, fouling (UA)
+    "heater":    {"lhv": (0.82, 1.15), "Fp0": (0.8, 1.25), "UA": (0.75, 1.2)},
 }
 
 # Economic objective per scenario: maximize value − energy-cost while keeping
@@ -69,6 +71,10 @@ ECON = {
     # HVAC: hold the comfort band, ride the outdoor-favorable edge to save energy.
     "hvac":      {"temp_band": [(20.0, 24.0), (20.0, 24.0)], "level_band": [],
                   "value": "none", "w_value": 0.0, "w_energy": 1.2, "w_viol": 14.0},
+    # fired heater: hold T_out on-spec at minimum fired duty; O2 band keeps economics
+    # off the low-O2 trip edge (level_scale: O2 violations are in %, not meters)
+    "heater":    {"temp_band": [(362.0, 378.0)], "level_band": [(1.6, 5.5)],
+                  "value": "none", "w_value": 0.0, "w_energy": 0.005, "w_viol": 30.0, "level_scale": 1.0},
 }
 
 # Supervisory (RL-on-PID / RTO) action layout: RL outputs SETPOINTS that the inner
@@ -82,6 +88,7 @@ SUPERVISORY = {
     "quadruple": [("t_sp", 0, 25, 72), ("t_sp", 1, 25, 72), ("t_sp", 2, 20, 58), ("t_sp", 3, 20, 58)],
     "cstr":      [("t_sp", 0, 45, 90), ("mv", "pumps", 0, 0.3, 1.0)],
     "hvac":      [("t_sp", 0, 18, 26), ("t_sp", 1, 18, 26)],
+    "heater":    [("t_sp", 0, 364, 372), ("h_sp", 0, 1.8, 5.0)],   # RL trims T_out SP + flue-O2 SP (kept inside the econ bands)
 }
 
 
@@ -290,12 +297,13 @@ class AIOGymNativeEnv(gym.Env):
                 viol += (lo - temps[i]) / 10.0
             if hi is not None and temps[i] > hi:
                 viol += (temps[i] - hi) / 10.0
+        l_scale = cfg.get("level_scale", 0.1)
         for j, i in enumerate(ctrl):
             lo, hi = cfg["level_band"][j]
             if lo is not None and levels[i] < lo:
-                viol += (lo - levels[i]) / 0.1
+                viol += (lo - levels[i]) / l_scale
             if hi is not None and levels[i] > hi:
-                viol += (levels[i] - hi) / 0.1
+                viol += (levels[i] - hi) / l_scale
         profit = cfg["w_value"] * value - cfg["w_energy"] * energy_kw - cfg["w_viol"] * viol
         if runaway:
             profit -= 50.0

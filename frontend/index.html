@@ -34,6 +34,9 @@
         <button data-scenario="hvac">
           <span class="mk">⌂</span><span class="mt" data-zh="双区 HVAC 温控" data-en="Two-Zone HVAC" data-ja="2ゾーン HVAC 温度制御">双区 HVAC 温控</span>
         </button>
+        <button data-scenario="heater">
+          <span class="mk">♨</span><span class="mt" data-zh="管式加热炉" data-en="Fired Heater" data-ja="管式加熱炉">管式加热炉</span>
+        </button>
       </div>
     </div>
 
@@ -53,14 +56,6 @@
       <span class="ctl-lbl" data-zh="倍速" data-en="Speed" data-ja="速度">倍速</span>
       <input type="range" id="speed" min="0.5" max="10" step="0.5" value="1" />
       <span id="speed-val" class="mono">1.0×</span>
-    </div>
-
-    <div class="ctl-group" title="仪表与执行机构实感:理想=完美测量与执行;真实=带噪声/迟延/滞后/黏滞 · Instrument & actuator realism (ideal = perfect; real = noise/deadtime/lag/stiction)">
-      <span class="ctl-lbl" data-zh="实感" data-en="Realism" data-ja="忠実度">实感</span>
-      <div class="seg sm" id="fidelity-seg">
-        <button data-fid="0" data-zh="理想" data-en="Ideal" data-ja="理想">理想</button>
-        <button data-fid="1" class="active" data-zh="真实" data-en="Real" data-ja="リアル">真实</button>
-      </div>
     </div>
 
     <button id="btn-run" class="btn-primary">暂停</button>
@@ -112,6 +107,6 @@
   <div id="toast-host" class="toast-host"></div>
 
   <script src="./vendor/uPlot.iife.min.js"></script>
-  <script type="module" src="./js/app.js?v=15"></script>
+  <script type="module" src="./js/app.js?v=19"></script>
 </body>
 </html>

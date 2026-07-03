@@ -325,7 +325,93 @@ class HVACModel:
         return 0.0
 
 
-MODELS = {"cascade": CascadeModel, "quadruple": QuadrupleModel, "cstr": CSTRModel, "hvac": HVACModel}
+
+
+class FiredHeaterModel:
+    """Refinery fired heater (mirrors frontend/js/sim/models.js FiredHeaterModel).
+    States [T_firebox, T_out, O2]. MVs: air damper (valve 0) + fuel valve (heater 0).
+    Flue O2 lives in the LEVEL slot (0-12% range) so the level machinery becomes a
+    burner-management system; stack loss grows with excess air so the fuel-optimal
+    point hugs the low-O2 edge."""
+    scenario = "heater"
+    n = 1
+    dt_micro = 0.05
+
+    def __init__(self):
+        self.p = dict(Fmax=1.0, lhv=46e6, stoich=17.2, Amax=40.0, cp_g=1400.0,
+                      UA=42e3, Cfb=3.5e6, Cc=7e6, Fp0=88.0, cp_p=2300.0, tau_o2=20.0,
+                      t_cold=280.0, t_amb=20.0, h_floor=1e-3)
+
+    def actuator_counts(self):
+        return (0, 1, 1)
+
+    @property
+    def height_max(self):
+        return [12.0]
+
+    def _comb(self, act, env):
+        p = self.p
+        Ff = act["heaters"][0] * p["Fmax"]
+        A = act["valves"][0] * p["Amax"]
+        Ast = p["stoich"] * Ff
+        c = min(1.0, A / _maxv(Ast, 1e-6))
+        Q = Ff * c * p["lhv"] * env.get("lhv_factor", 1.0)
+        o2eq = 20.9 * _maxv(0.0, A - Ast * c) / _maxv(A + Ff * c, 1e-6)
+        mg = A + Ff * c
+        return Ff, A, Q, o2eq, mg
+
+    def derivatives(self, x, act, env):
+        p = self.p
+        Tfb, Tout, O2 = x[0], x[1], x[2]
+        Ff, A, Q, o2eq, mg = self._comb(act, env)
+        Fp = p["Fp0"] + env.get("extra_outflow", 0.0) * 30000.0
+        Tin = env["t_cold"]
+        Tm = (Tin + Tout) / 2.0
+        return [
+            (Q - p["UA"] * (Tfb - Tm) - mg * p["cp_g"] * (Tfb - env["t_amb"])) / p["Cfb"],
+            (Fp * p["cp_p"] * (Tin - Tout) + p["UA"] * (Tfb - Tm)) / p["Cc"],
+            (o2eq - O2) / p["tau_o2"],
+        ]
+
+    def levels_temps(self, x):
+        return [_maxv(x[2], 0.0)], [x[1]]
+
+    def initial_state(self):
+        return [700.0, 350.0, 3.5]
+
+    def clamp_state(self, x):
+        x[0] = min(max(x[0], 20.0), 1400.0)
+        x[1] = min(max(x[1], 20.0), 650.0)
+        x[2] = min(max(x[2], 0.0), 20.9)
+        return x
+
+    def controlled_levels(self):
+        return [0]
+
+    def default_setpoints(self):
+        return {0: 3.0}, [370.0]
+
+    # ---- KPI support ----
+    energy_scored = False
+    kpi_level_scale = 25.0          # 1% O2 error ~ 4 cm of level error in the composite KPI
+
+    def cv_scales(self):
+        return {"level": 1.2, "temp": 12.0}   # MPC error normalisation: 1.2% O2 ~ 12 degC
+
+    def mpc_init(self):
+        return [0.30, 0.55]                    # [air, fuel] near the operating point
+
+    def heater_power(self, act):
+        return act["heaters"][0] * self.p["Fmax"] * self.p["lhv"]     # fired duty (W)
+
+    def pump_power(self, act):
+        return 0.0
+
+    def ideal_power(self, levels, temps, t_sp, env, act):
+        return 0.0
+
+
+MODELS = {"cascade": CascadeModel, "quadruple": QuadrupleModel, "cstr": CSTRModel, "hvac": HVACModel, "heater": FiredHeaterModel}
 SCENARIOS = list(MODELS.keys())
 
 

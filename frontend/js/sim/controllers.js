@@ -2,7 +2,7 @@
 // multi-loop PID), and RL (loads an ONNX policy and runs it in-browser via
 // onnxruntime-web). All share one interface: compute(state, setpoints, dt) ->
 // {pumps, valves, heaters} in [0,1]. The mode buttons swap between them.
-import { t } from '../i18n.js?v=15';
+import { t } from '../i18n.js?v=19';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const zeros = (n) => new Array(n).fill(0);
@@ -116,6 +116,7 @@ export const SUPERVISORY = {
   quadruple: [['t_sp', 0, 25, 72], ['t_sp', 1, 25, 72], ['t_sp', 2, 20, 58], ['t_sp', 3, 20, 58]],
   cstr:      [['t_sp', 0, 45, 90], ['mv', 'pumps', 0, 0.3, 1.0]],
   hvac:      [['t_sp', 0, 18, 26], ['t_sp', 1, 18, 26]],
+  heater:    [['t_sp', 0, 364, 372], ['h_sp', 0, 1.8, 5.0]],   // RL trims T_out SP + flue-O₂ SP (bounds keep both inside the econ bands); PIDs hold them
 };
 
 // One supervisory RLPD policy per scenario: RL sets the setpoints, the inner PID
@@ -137,6 +138,11 @@ export const BUILTIN_POLICIES = [
     noteZh: 'RL 设温度目标、PID 控住：达标前提下最省能，成本低于 PID/MPC',
     noteEn: 'RL sets temp targets, PID holds them — min-energy on-spec, lower cost than PID/MPC',
     noteJa: 'RL が温度目標を設定し PID が維持：規格達成のうえで省エネ最大、コストは PID/MPC より低い' },
+  { id: 'rlpd_heater', scenario: 'heater', url: './models/rlpd_heater.onnx', mode: 'setpoint',
+    zh: 'RLPD · 加热炉 燃料优化', en: 'RLPD · Heater fuel-optimal', ja: 'RLPD · 加熱炉 燃料最適',
+    noteZh: 'RL 在线调出口温度 SP + 烟气 O₂ SP、PID 控住。诚实说明:此对象的 PID+O₂trim 结构本身很强,RL 仅在宽工况分布上小幅占优(裕量管理型),单一工况下与 PID 相当',
+    noteEn: 'RL trims the T_out + flue-O₂ SPs online, PIDs hold them. Honest note: PID+O₂-trim is inherently strong here — RL only edges it across the wide 工况 distribution (margin management), and matches it at any single operating point',
+    noteJa: 'RL が出口温度 SP と O₂ SP をオンライン調整し PID が維持。正直な注記:この対象は PID+O₂トリム構造自体が強く、RL は広い運転条件分布でわずかに優位(余裕管理型)、単一条件では PID と同等' },
   { id: 'rlpd_hvac', scenario: 'hvac', url: './models/rlpd_hvac.onnx', mode: 'setpoint',
     zh: 'RLPD · HVAC 节能', en: 'RLPD · HVAC economic', ja: 'RLPD · HVAC 省エネ',
     noteZh: 'RL 设室温目标、PID 控住：舒适区内贴外温侧最省能，成本低于 PID/MPC',

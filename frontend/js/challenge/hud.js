@@ -1,7 +1,7 @@
 // Challenge HUD — pure rendering. Plant P&IDs are reused from schematic.js (built
 // in challenge.js, one per player); here we render the you-vs-RL economic-score
 // board, toasts, the level-select card, and the result card. All strings via i18n.
-import { t } from '../i18n.js?v=15';
+import { t } from '../i18n.js?v=19';
 
 const r1 = (v) => (v < 0 ? '−' : '') + Math.abs(Math.round(v));
 

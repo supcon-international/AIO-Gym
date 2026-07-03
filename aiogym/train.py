@@ -45,7 +45,7 @@ def best_device():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scenario", default="cstr", choices=["cascade", "quadruple", "cstr", "hvac"])
+    ap.add_argument("--scenario", default="cstr", choices=["cascade", "quadruple", "cstr", "hvac", "heater"])
     ap.add_argument("--algo", default="sac", choices=["sac", "ppo"])
     ap.add_argument("--action-mode", default="setpoint", choices=["setpoint", "actuator"])
     ap.add_argument("--reward-mode", default="economic", choices=["economic", "kpi", "track"])

@@ -4,9 +4,9 @@
 // it in real time. Anti-idle scoring: CSTR rewards production (idle = 0); HVAC /
 // cascade score = on-spec% × energy-factor (idle drifts off-spec → ~0). Reuses the
 // sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=15';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=15';
-import { buildSchematic } from '../schematic.js?v=15';
+import { Engine } from '../sim/engine.js?v=19';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=19';
+import { buildSchematic } from '../schematic.js?v=19';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
@@ -50,6 +50,22 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'ambient', warmBias: 0.5, mag: [6, 12], every: [13, 28], dur: [11, 21] },
     metric: 'comfort', compare: 'energy', bands: [[20, 24], [20, 24]], energyCap: 0.6,
+  },
+  heater: {
+    scenario: 'heater', sub: 'refinery fired heater',
+    name: () => t('管式加热炉', 'Fired Heater', '管式加熱炉'),
+    tag: () => t('平衡 · 省燃料 vs 缺氧熄火', 'Balance · fuel vs low-O₂ trip', 'バランス · 省燃料 vs 低O₂遮断'),
+    blurb: () => t('把出口温度稳在 370°C:火大费燃料,风大偷热,风太小 → 低氧联锁切燃料。燃料热值还会漂移。',
+      'Hold the outlet at 370°C: more fuel costs, excess air steals heat, too little air trips the burner. Fuel quality drifts too.',
+      '出口を 370°C に保つ:燃料は高い、過剰空気は熱を奪う、空気不足はバーナー遮断。燃料品質も変動。'),
+    start: [757, 368, 2.8],
+    controls: [
+      { kind: 'heater', idx: 0, zh: '燃料', en: 'Fuel', ja: '燃料', hint: () => t('= 成本', '= cost', '= コスト'), cls: 'heat', init: 64 },
+      { kind: 'valve', idx: 0, zh: '风门', en: 'Air damper', ja: 'ダンパー', cls: 'cool', init: 31 },
+    ],
+    autoLevel: false,
+    disturb: { type: 'fuel_lhv', warmBias: 0.5, mag: [0.08, 0.15], every: [14, 28], dur: [12, 22] },
+    metric: 'comfort', compare: 'energy', bands: [[362, 378]], energyCap: 7000,
   },
   cascade: {
     scenario: 'cascade', sub: 'heated-tank cascade',
@@ -140,7 +156,7 @@ class Challenge {
     this.levelKey = key; this.cfg = LEVELS[key];
     const sc = this.cfg.scenario;
     this.human = new Engine(sc); this.ghost = new Engine(sc);
-    for (const e of [this.human, this.ghost]) { e.handleCommand({ type: 'set_auto_events', on: false }); e.handleCommand({ type: 'set_fidelity', level: 1 }); e.running = false; }
+    for (const e of [this.human, this.ghost]) { e.handleCommand({ type: 'set_auto_events', on: false }); e.running = false; }
     this.ghost.setMode('rl');
     document.getElementById('cd-sub').textContent = this.cfg.sub;
     this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata());
@@ -265,16 +281,20 @@ class Challenge {
   }
 
   _notify(e) {
-    let msg;
+    let msg, danger = e.warm && this.cfg.metric === 'production';
     if (this.cfg.disturb.type === 'ambient') {
       const out = (15 + e.params.value).toFixed(0);
       msg = e.warm ? t(`室外升温到 ${out}° · 该开冷气`, `Outdoor up to ${out}° · cool down`, `室外 ${out}°・冷房を`)
                    : t(`室外降到 ${out}° · 该开暖气`, `Outdoor down to ${out}° · warm up`, `室外 ${out}°・暖房を`);
+    } else if (this.cfg.disturb.type === 'fuel_lhv') {
+      const pct = Math.round(Math.abs(e.params.value) * 100);
+      if (e.params.value < 0) { msg = t(`燃料热值降 ${pct}% · 火变弱了,补燃料`, `Fuel quality −${pct}% · flame weakens, add fuel`, `燃料品質 −${pct}%・火が弱い、増量を`); danger = true; }
+      else msg = t(`燃料热值升 ${pct}% · 可以省点火`, `Fuel quality +${pct}% · ease off the fuel`, `燃料品質 +${pct}%・燃料を絞れる`);
     } else {
       msg = e.warm ? t(`进料升温 +${e.params.value}° · 当心超温`, `Feed warms +${e.params.value}° · watch temp`, `供給 +${e.params.value}°・温度注意`)
                    : t(`进料降温 ${e.params.value}° · 可加料`, `Feed cools ${e.params.value}° · push feed`, `供給 ${e.params.value}°・増給可`);
     }
-    toast(this.toastHost, msg, e.warm && this.cfg.metric === 'production');
+    toast(this.toastHost, msg, danger);
   }
 
   _end() {

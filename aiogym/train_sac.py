@@ -17,7 +17,7 @@ import argparse
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scenario", default="cstr", choices=["cascade", "quadruple", "cstr", "hvac"])
+    ap.add_argument("--scenario", default="cstr", choices=["cascade", "quadruple", "cstr", "hvac", "heater"])
     ap.add_argument("--steps", type=int, default=200_000)
     ap.add_argument("--n-envs", type=int, default=8)
     ap.add_argument("--randomize", action="store_true", help="domain-randomize init + setpoints (sim-to-real)")
@@ -29,7 +29,7 @@ def main():
     from stable_baselines3 import SAC
     from stable_baselines3.common.env_util import make_vec_env
 
-    name = {"cascade": "Cascade", "quadruple": "Quadruple", "cstr": "CSTR", "hvac": "HVAC"}[args.scenario]
+    name = {"cascade": "Cascade", "quadruple": "Quadruple", "cstr": "CSTR", "hvac": "HVAC", "heater": "Heater"}[args.scenario]
     env = make_vec_env(lambda: gym.make(f"AIOGym/{name}-v0", randomize=args.randomize,
                                         randomize_setpoints=args.randomize), n_envs=args.n_envs)
 

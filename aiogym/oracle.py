@@ -88,7 +88,33 @@ def _f_hvac(x, u, d, p):
                       (P2 + p["Kc"] * (x[0] - x[1]) + p["Ko"] * (Tout - x[1])) / p["C"])
 
 
-_DYN = {"cascade": _f_cascade, "quadruple": _f_quadruple, "cstr": _f_cstr, "hvac": _f_hvac}
+def _f_heater(x, u, d, p):
+    """[T_fb, T_out, O2]; u = [air damper, fuel valve]; d = [t_cold, t_amb].
+    The oracle predicts with NOMINAL fuel quality / feed rate (lhv_factor=1,
+    extra_outflow=0) — a perfect-model baseline, not a disturbance observer."""
+    Tfb, Tout, O2 = x[0], x[1], x[2]
+    Ff = u[1] * p["Fmax"]
+    A = u[0] * p["Amax"]
+    Ast = p["stoich"] * Ff
+    # smooth surrogates of min/max (the kinks stall IPOPT): smin(1,r), splus(x)
+    lam = A / (Ast + 1e-3)
+    eps = 0.05
+    c = 1.0 - 0.5 * ((1.0 - lam) + ca.sqrt((1.0 - lam) ** 2 + eps ** 2))     # ~min(1, lam)
+    excess = 0.5 * ((A - Ast * c) + ca.sqrt((A - Ast * c) ** 2 + eps ** 2))  # ~max(0, ·)
+    Q = Ff * c * p["lhv"]
+    o2eq = 20.9 * excess / (A + Ff * c + 1e-3)
+    mg = A + Ff * c
+    Fp = p["Fp0"]
+    Tin = d[0]
+    Tm = (Tin + Tout) / 2.0
+    return ca.vertcat(
+        (Q - p["UA"] * (Tfb - Tm) - mg * p["cp_g"] * (Tfb - d[1])) / p["Cfb"],
+        (Fp * p["cp_p"] * (Tin - Tout) + p["UA"] * (Tfb - Tm)) / p["Cc"],
+        (o2eq - O2) / p["tau_o2"],
+    )
+
+
+_DYN = {"cascade": _f_cascade, "quadruple": _f_quadruple, "cstr": _f_cstr, "hvac": _f_hvac, "heater": _f_heater}
 
 
 class NMPCOracle:
@@ -111,7 +137,7 @@ class NMPCOracle:
         self.econ = ECON.get(scenario, ECON["cascade"])
         # hard safety cap (below the 92°C runaway trip) so economic NMPC hugs the edge
         # without driving the plant unstable; HVAC has no runaway so cap loosely.
-        self.t_safe = 40.0 if scenario == "hvac" else 90.0
+        self.t_safe = {"hvac": 40.0, "heater": 410.0}.get(scenario, 90.0)
         self.u_prev = np.full(self.nu, 0.5)
         self._build()
 
@@ -142,7 +168,8 @@ class NMPCOracle:
     def _econ_profit(self, x, u, d):
         cfg = self.econ
         temps = [x[self._temp_idx(i)] for i in range(self.model.n)]
-        levels = [x[2 * i] for i in range(self.model.n)] if self.scenario in ("cascade", "quadruple") else []
+        levels = ([x[2 * i] for i in range(self.model.n)] if self.scenario in ("cascade", "quadruple")
+                  else [x[2]] if self.scenario == "heater" else [])
         value = 0
         if cfg["value"] == "production":                  # CSTR
             D = u[0] * self.p["Dmax"]
@@ -154,6 +181,8 @@ class NMPCOracle:
             energy = sum(u[2 + i] * self.p["heater_max"][i] for i in range(4)) / 1000.0
         elif self.scenario == "cstr":
             energy = u[1] * self.p["cool_max"] / 1000.0
+        elif self.scenario == "heater":
+            energy = u[1] * self.p["Fmax"] * self.p["lhv"] / 1000.0
         else:
             energy = sum(ca.fabs((u[i] - 0.5) * 2 * self.p["Pmax"]) for i in range(2)) / 1000.0
         viol = 0
@@ -162,16 +191,21 @@ class NMPCOracle:
                 viol += ca.fmax(0, lo - temps[i]) / 10.0
             if hi is not None:
                 viol += ca.fmax(0, temps[i] - hi) / 10.0
+        l_scale = cfg.get("level_scale", 0.1)
         for j, i in enumerate(self.model.controlled_levels()):
             lo, hi = cfg["level_band"][j]
             if lo is not None:
-                viol += ca.fmax(0, lo - levels[i]) / 0.1
+                viol += ca.fmax(0, lo - levels[i]) / l_scale
             if hi is not None:
-                viol += ca.fmax(0, levels[i] - hi) / 0.1
+                viol += ca.fmax(0, levels[i] - hi) / l_scale
         return cfg["w_value"] * value - cfg["w_energy"] * energy - cfg["w_viol"] * viol
 
     def _temp_idx(self, i):
-        return 2 * i + 1 if self.scenario in ("cascade", "quadruple") else (1 if self.scenario == "cstr" else i)
+        if self.scenario in ("cascade", "quadruple"):
+            return 2 * i + 1
+        if self.scenario in ("cstr", "heater"):
+            return 1
+        return i
 
     def _build(self):
         N, nx, nu = self.N, self.nx, self.nu
@@ -199,7 +233,7 @@ class NMPCOracle:
             J += self._stage_cost(X[:, k], U[:, k], sp, d) + self.r_move * ca.sumsqr(U[:, k] - up)
         J += 1e4 * ca.sumsqr(slack)                                    # heavily discourage cap violation
         opti.minimize(J)
-        opti.solver("ipopt", {"ipopt.print_level": 0, "print_time": 0, "ipopt.max_iter": 80,
+        opti.solver("ipopt", {"ipopt.print_level": 0, "print_time": 0, "ipopt.max_iter": 300,
                               "ipopt.acceptable_tol": 1e-4})
         self.opti, self.X, self.U = opti, X, U
         self.par = {"x0": x0, "d": d, "u_prev": u_prev, "tsp": tsp, "hsp": hsp}
@@ -217,6 +251,7 @@ class NMPCOracle:
                                                  for i in range(self.model.n)], float))
         try:
             o.set_initial(self.U, np.tile(self.u_prev.reshape(-1, 1), (1, self.N)))
+            o.set_initial(self.X, np.tile(np.asarray(x, float).reshape(-1, 1), (1, self.N + 1)))
             sol = o.solve()
             u = np.clip(sol.value(self.U)[:, 0], 0.0, 1.0)
         except Exception:

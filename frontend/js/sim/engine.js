@@ -2,14 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=15';
-import { Integrator } from './kernel.js?v=15';
-import { ManualController, PIDController, RLController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=15';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=15';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=15';
-import { ScoreKeeper } from './scoring.js?v=15';
-import { Realism } from './realism.js?v=15';
-import { MPCController } from './mpc.js?v=15';
+import { makeModel } from './models.js?v=19';
+import { Integrator } from './kernel.js?v=19';
+import { ManualController, PIDController, RLController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=19';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=19';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=19';
+import { ScoreKeeper } from './scoring.js?v=19';
+import { Realism } from './realism.js?v=19';
+import { MPCController } from './mpc.js?v=19';
 
 const TICK = 0.05;
 const EPISODE_SIM_S = 600;   // one episode = 600 s sim time (= 1 min at 10x speed)
@@ -32,7 +32,7 @@ export class Engine {
     this.disturb = new DisturbanceManager(this.model);
     this.alarmsMon = new AlarmMonitor(this.model);
     this.score = new ScoreKeeper(this.model);
-    this.realism = new Realism(this.model);   // instrument + actuator imperfections
+    this.realism = new Realism(this.model);   // instrument + actuator imperfections (always on — this IS the plant)
     this.meas = null;                          // latest measured state (what controllers/RL see)
     this._initSetpoints();
     this.running = true; this.speed = 1; this.simT = 0;
@@ -104,7 +104,8 @@ export class Engine {
     this.disturb.clearAll();
     if (Math.random() < 0.3) return;                             // sometimes a quiet period
     const hasValves = this.model.actuatorCounts()[1] > 0;
-    const keys = Object.keys(CATALOG).filter((k) => !(CATALOG[k].needs === 'valves' && !hasValves));
+    const keys = Object.keys(CATALOG).filter((k) => !(CATALOG[k].needs === 'valves' && !hasValves))
+      .filter((k) => !(CATALOG[k].needs === 'fuel' && this.scenario !== 'heater'));
     // default-on auto-events lean toward process disturbances; hard equipment faults
     // (pump trip / heater dead / valve stuck) are rarer so the plant isn't constantly broken.
     const faults = keys.filter((kk) => CATALOG[kk].kind === 'fault');
@@ -156,7 +157,7 @@ export class Engine {
     // scenario's custom trend charts get their data without touching this list.
     for (const k in s) { if (!(k in state) && k !== 't' && Array.isArray(s[k])) state[k] = s[k].map((x) => r(x, 4)); }
     return {
-      type: 'telemetry', t: r(s.t, 2), running: this.running, speed: this.speed, fidelity: this.realism.level,
+      type: 'telemetry', t: r(s.t, 2), running: this.running, speed: this.speed,
       scenario: this.scenario, mode: this.mode, n_tanks: this.n, meta: this.model.metadata(),
       setpoints: { h_sp: this.setpoints.h_sp.map((x) => r(x, 4)), t_sp: this.setpoints.t_sp.map((x) => r(x, 2)) },
       state,
@@ -171,7 +172,8 @@ export class Engine {
 
   _limits() {
     const L = LIMITS, hmax = this.model.heightMax;
-    return { height_max: hmax, h_high: hmax.map((h) => L.h_high_frac * h), h_low: hmax.map((h) => L.h_low_frac * h), t_high: L.t_high, t_trip: L.t_trip };
+    const tl = { high: L.t_high, trip: L.t_trip, ...(this.model.tempLimits ? this.model.tempLimits() : {}) };
+    return { height_max: hmax, h_high: hmax.map((h) => L.h_high_frac * h), h_low: hmax.map((h) => L.h_low_frac * h), t_high: tl.high, t_trip: tl.trip };
   }
 
   // RL helpers: flat observation vector and a per-step reward.
@@ -208,7 +210,6 @@ export class Engine {
       case 'clear_disturbance': this.disturb.clear(msg.dtype); break;
       case 'clear_disturbances': this.disturb.clearAll(); break;
       case 'set_auto_events': this.autoEvents = !!msg.on; this._evClock = 0; this._evNext = 4; if (!msg.on) this.disturb.clearAll(); break;
-      case 'set_fidelity': this.realism.setLevel(msg.level); break;
       case 'set_mpc': this.mpc.setConfig(msg); break;
     }
   }

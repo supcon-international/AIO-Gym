@@ -15,13 +15,16 @@ const ECON = {
   quadruple: { temp_band: [[46, 58], [46, 58], [32, 46], [32, 46]], level_band: [[0.32, 0.56], [0.32, 0.56]], value: 'none', w_value: 0.0, w_energy: 0.6, w_viol: 25.0 },
   cstr:      { temp_band: [[null, 88]], level_band: [], value: 'production', w_value: 900.0, w_energy: 0.4, w_viol: 8.0 },
   hvac:      { temp_band: [[20, 24], [20, 24]], level_band: [], value: 'none', w_value: 0.0, w_energy: 1.2, w_viol: 14.0 },
+  // fired heater: hold T_out on-spec at minimum fired duty; the O₂ "level" band keeps
+  // economics off the low-O₂ trip edge. level_scale: O₂ violations are in %, not meters.
+  heater:    { temp_band: [[362, 378]], level_band: [[1.6, 5.5]], value: 'none', w_value: 0.0, w_energy: 0.005, w_viol: 30.0, level_scale: 1.0 },
 };
 // Per-scenario [worst, best] profit-rate (per control step) for a 0-100 economic score.
 // worst ≈ fixed-SP PID, best ≈ the economic optimum the RL targets (from aiogym/runs).
 // per-step profit-rate [worst, best] from aiogym/runs (supervisory RL vs PID/MPC).
 // Honest: RL clearly leads on cstr/hvac (real economic headroom); on cascade/quad it's
 // competitive (regulation problems where PID/MPC are near-optimal — no gaming).
-const ECON_REF = { cascade: [-260, -120], quadruple: [-185, -115], cstr: [-3.0, 1.2], hvac: [-9.0, -4.0] };
+const ECON_REF = { cascade: [-260, -120], quadruple: [-185, -115], cstr: [-3.0, 1.2], hvac: [-9.0, -4.0], heater: [-250, -170] };
 
 export class ScoreKeeper {
   constructor(model) { this.bind(model); }
@@ -31,6 +34,7 @@ export class ScoreKeeper {
     this.scenario = model.metadata ? model.metadata().scenario : 'cascade';
     this.econ = ECON[this.scenario] || ECON.cascade;
     this.econRef = ECON_REF[this.scenario] || ECON_REF.cascade;
+    this.lErrDiv = model.kpiLevelScale ? model.kpiLevelScale() : 1;   // level-err unit → meters (heater: O₂ %)
     this.reset();
   }
   reset() {
@@ -75,11 +79,12 @@ export class ScoreKeeper {
       if (lo != null && T < lo) viol += (lo - T) / 10;
       if (hi != null && T > hi) viol += (T - hi) / 10;
     }
+    const lScale = c.level_scale ?? 0.1;   // meters by default; the heater's O₂-% band uses 1.0
     this.ctrl.forEach((idx, j) => {
       const b = c.level_band[j]; if (!b) return;
       const [lo, hi] = b, L = s.levels[idx];
-      if (lo != null && L < lo) viol += (lo - L) / 0.1;
-      if (hi != null && L > hi) viol += (L - hi) / 0.1;
+      if (lo != null && L < lo) viol += (lo - L) / lScale;
+      if (hi != null && L > hi) viol += (L - hi) / lScale;
     });
     const profit = c.w_value * value - c.w_energy * energyKw - c.w_viol * viol;
     this.econProfit += profit; this.econSteps += 1;
@@ -90,7 +95,7 @@ export class ScoreKeeper {
 
   report() {
     const e = Math.max(this.elapsed, 1e-6), hours = e / 3600, nL = Math.max(1, this.ctrl.length);
-    const avgT = this.iaeT / (e * this.n), avgL = this.iaeL / (e * nL);
+    const avgT = this.iaeT / (e * this.n), avgL = this.iaeL / (e * nL) / this.lErrDiv;
     const avgP = hours > 0 ? this.energy / hours : 0, avgX = hours > 0 ? this.excess / hours : 0;
     const sFrac = this.interlockSec / e;
     const pT = W_TEMP * avgT, pL = W_LEVEL * avgL, pE = this.scoreEnergy ? W_ENERGY * avgX : 0, pS = W_SAFETY * sFrac;

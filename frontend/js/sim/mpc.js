@@ -46,17 +46,21 @@ export class MPCController {
     this.ctrl = model.controlledLevels();
     this.nCV = this.ctrl.length + model.n;                 // controlled levels + every temperature
     // APC-style configuration (operator-tunable)
+    const cs = model.cvScales ? model.cvScales() : {};     // per-model CV normalisation (heater: O₂% vs °C)
     this.cfg = {
       Ts: 0.5, P: 40,                                      // control cycle (s) and prediction horizon (steps)
       moveSupp: 0.8,                                       // MV move-suppression weight (the main robustness knob)
       duMax: 0.15,                                         // MV max move per cycle (rate limit)
       uMin: 0, uMax: 1,
-      cvScaleLevel: 0.1, cvScaleTemp: 12,                  // normalise level(m) vs temp(°C) errors
+      cvScaleLevel: cs.level ?? 0.1, cvScaleTemp: cs.temp ?? 12,   // normalise level(m) vs temp(°C) errors
     };
     this.reset();
   }
   reset() {
-    this.u = new Array(this.nu).fill(0).map((_, i) => (i < this.nP ? 0.35 : i < this.nP + this.nV ? 0.5 : 0.0));
+    // start MVs at a per-model operating point when given: the successive linearization
+    // needs a non-degenerate point (e.g. the heater's O₂ has zero gradient at fuel=0)
+    const init = this.model.mpcInit ? this.model.mpcInit() : null;
+    this.u = init ? init.slice() : new Array(this.nu).fill(0).map((_, i) => (i < this.nP ? 0.35 : i < this.nP + this.nV ? 0.5 : 0.0));
     this._clock = 1e9;                                     // force a solve on the first tick
   }
   getConfig() {
@@ -74,6 +78,7 @@ export class MPCController {
     const s = this.model.scenario;
     if (s === 'cstr') return [meas.conc[0], meas.temps[0]];
     if (s === 'hvac') return [meas.temps[0], meas.temps[1]];
+    if (s === 'heater') return [(meas.tfb && meas.tfb[0]) ?? 700, meas.temps[0], meas.levels[0]];
     const x = new Array(this.nx);                          // tank models interleave [h_i, T_i]
     for (let i = 0; i < this.model.n; i++) { x[2 * i] = meas.levels[i]; x[2 * i + 1] = meas.temps[i]; }
     return x;
@@ -145,11 +150,26 @@ export class MPCController {
       for (let a = 0; a < nu; a++) { let ga = 0; for (let r = 0; r < nCV; r++) { const wgr = Wcv[r] * G[r][a]; ga += wgr * e[r]; for (let b = 0; b < nu; b++) H[a][b] += wgr * G[r][b]; } g[a] += ga; }
     }
     for (let a = 0; a < nu; a++) H[a][a] += this.cfg.moveSupp;   // move suppression
-    // --- solve for the move, clamp to rate + MV box, apply (receding horizon) ---
-    let du = solveSym(H, g);
-    for (let j = 0; j < nu; j++) {
-      du[j] = clamp(du[j], -this.cfg.duMax, this.cfg.duMax);
-      this.u[j] = clamp(u0[j] + du[j], this.cfg.uMin, this.cfg.uMax);
+    // --- box-QP solve: cyclic coordinate descent on the moves ---
+    // A joint solve-then-clip lets a SATURATED MV poison the rest (the QP plans an
+    // impossible fuel move and the air damper "compensates" for it — near-singular H
+    // makes it worse: correlated MVs like fuel/air are almost collinear). Coordinate
+    // descent respects the rate+box bounds inside the solve, so saturated MVs
+    // contribute only their FEASIBLE move; a handful of sweeps converges for nu ≤ 8.
+    const lo = (j) => Math.max(-this.cfg.duMax, this.cfg.uMin - u0[j]);
+    const hi = (j) => Math.min(this.cfg.duMax, this.cfg.uMax - u0[j]);
+    const du = new Array(nu).fill(0);
+    for (let sweep = 0; sweep < 6; sweep++) {
+      let moved = 0;
+      for (let j = 0; j < nu; j++) {
+        let s = g[j];
+        for (let k = 0; k < nu; k++) if (k !== j) s += H[j][k] * du[k];
+        const cand = clamp(-s / (H[j][j] || 1e-9), lo(j), hi(j));
+        moved = Math.max(moved, Math.abs(cand - du[j]));
+        du[j] = cand;
+      }
+      if (moved < 1e-6) break;
     }
+    for (let j = 0; j < nu; j++) this.u[j] = clamp(u0[j] + du[j], this.cfg.uMin, this.cfg.uMax);
   }
 }

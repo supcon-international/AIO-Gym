@@ -2,7 +2,7 @@
 // cascade, or the Johansson quadruple-tank (2 lower + 2 upper, crossed pump
 // feeds). Both bind tank water height/colour, heater glow, pump and pipe-flow
 // animation to live telemetry.
-import { t as L } from './i18n.js?v=15';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=19';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {
@@ -113,8 +113,98 @@ function flowPipe(svg, d, color = '#5B8DEF') {
 }
 
 export function buildSchematic(host, meta) {
-  const f = { quadruple: buildQuadruple, cstr: buildCSTR, hvac: buildHVAC }[meta.topology];
+  const f = { quadruple: buildQuadruple, cstr: buildCSTR, hvac: buildHVAC, heater: buildHeater }[meta.topology];
   return f ? f(host, meta) : buildCascade(host, meta);
+}
+
+// ---------------- Refinery fired heater (firebox + coil + stack O₂) ----------------
+function buildHeater(host, meta) {
+  host.innerHTML = '';
+  const W = 720, H = 400;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
+  svg.appendChild(defsBlock());
+  svg.appendChild(el('text', { x: W / 2, y: 18, fill: '#585C62', 'font-size': 10.5, 'text-anchor': 'middle' },
+    txt(L('燃料把进料加热到目标出口温度;过剩空气带走热量(费燃料),风太少 → 低氧联锁切燃料',
+          'Fuel heats the feed to the target outlet temp; excess air steals heat (wastes fuel), too little → low-O₂ fuel trip',
+          '燃料が供給を目標出口温度へ加熱;過剰空気は熱を奪い(燃料浪費)、不足 → 低 O₂ で燃料遮断'))));
+
+  const bx = 250, by = 90, bw = 220, bh = 240, cx = bx + bw / 2, bbot = by + bh;
+  // firebox shell (refractory)
+  svg.appendChild(el('rect', { x: bx - 8, y: by - 8, width: bw + 16, height: bh + 16, rx: 10, fill: '#F3EDE4', stroke: '#B99D7B', 'stroke-width': 3 }));
+  svg.appendChild(el('rect', { x: bx, y: by, width: bw, height: bh, rx: 6, fill: '#1c2430', stroke: '#5A626C', 'stroke-width': 1.5 }));
+  svg.appendChild(el('text', { x: cx, y: by - 16, fill: '#9fb0c2', 'font-size': 12, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[0])));
+
+  // stack (top-right) with flue arrow + O₂ readout
+  const sx = bx + bw - 34;
+  svg.appendChild(el('rect', { x: sx, y: by - 62, width: 30, height: 58, fill: '#E8EBEF', stroke: '#B0B4B9', 'stroke-width': 1.6 }));
+  const flue = flowPipe(svg, `M${sx + 15},${by - 8} V${by - 66} H${sx + 78}`, '#9aa6b5');
+  svg.appendChild(el('text', { x: sx + 84, y: by - 62, fill: '#585C62', 'font-size': 10 }, txt(L('烟气', 'Flue', '排ガス'))));
+  const o2T = el('text', { x: sx + 84, y: by - 40, fill: '#0E8aa0', 'font-size': 15, 'font-weight': 700, 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('O₂ --'));
+  const o2SpT = el('text', { x: sx + 84, y: by - 24, fill: '#73B200', 'font-size': 10.5, 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('SP --'));
+  svg.appendChild(o2T); svg.appendChild(o2SpT);
+
+  // process coil through the upper firebox: feed in (left) -> outlet (right)
+  const cy0 = by + 52;
+  const coil = `M${bx - 90},${cy0} H${bx + 18} l14,-16 l24,32 l24,-32 l24,32 l24,-32 l24,32 l14,-16 H${bx + bw + 26} V${cy0 + 10}`;
+  svg.appendChild(el('path', { d: coil, stroke: '#8B939C', 'stroke-width': 7, fill: 'none', 'stroke-linejoin': 'round' }));
+  const feed = flowPipe(svg, `M${bx - 90},${cy0} H${bx + 10}`, '#2563EB');
+  const prod = flowPipe(svg, `M${bx + bw - 4},${cy0} H${bx + bw + 26} V${cy0 + 64} H${bx + bw + 96}`, '#E4572E');
+  svg.appendChild(el('text', { x: bx - 88, y: cy0 - 12, fill: '#585C62', 'font-size': 11 }, txt(L('进料', 'Feed', '供給'))));
+  const feedT = el('text', { x: bx - 88, y: cy0 + 22, fill: '#2563EB', 'font-size': 10.5, 'font-family': 'IBM Plex Mono, monospace' }, txt('--'));
+  svg.appendChild(feedT);
+  const outT = el('text', { x: bx + bw + 100, y: cy0 + 52, fill: '#0B1220', 'font-size': 26, 'font-weight': 700, 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('--'));
+  const outSp = el('text', { x: bx + bw + 100, y: cy0 + 72, fill: '#73B200', 'font-size': 11, 'font-family': 'IBM Plex Mono, monospace', ...HALO }, txt('SP --'));
+  svg.appendChild(el('text', { x: bx + bw + 100, y: cy0 + 30, fill: '#585C62', 'font-size': 11 }, txt(L('出口温度', 'Outlet', '出口温度'))));
+  svg.appendChild(outT); svg.appendChild(outSp);
+
+  // burners (flames) at the floor + fuel line with valve, air damper line
+  const flames = [];
+  for (let i = 0; i < 3; i++) {
+    const fx = cx - 56 + i * 56;
+    const fl = el('path', { d: `M${fx - 12},${bbot - 6} Q${fx},${bbot - 66} ${fx + 12},${bbot - 6} Z`, fill: '#FF9E2C', opacity: 0.9 });
+    svg.appendChild(fl); flames.push(fl);
+  }
+  const fuel = flowPipe(svg, `M${cx - 150},${bbot + 34} H${cx - 8} V${bbot - 2}`, '#C77700');
+  svg.appendChild(el('text', { x: cx - 150, y: bbot + 22, fill: '#585C62', 'font-size': 11 }, txt(L('燃料气', 'Fuel gas', '燃料ガス'))));
+  const fuelT = el('text', { x: cx - 150, y: bbot + 52, fill: '#C77700', 'font-size': 11, 'font-weight': 600, 'font-family': 'IBM Plex Mono, monospace' }, txt('--'));
+  svg.appendChild(fuelT);
+  const air = flowPipe(svg, `M${cx + 150},${bbot + 34} H${cx + 8} V${bbot - 2}`, '#0EA5C0');
+  svg.appendChild(el('text', { x: cx + 106, y: bbot + 22, fill: '#585C62', 'font-size': 11 }, txt(L('助燃风', 'Comb. air', '燃焼空気'))));
+  const airT = el('text', { x: cx + 106, y: bbot + 52, fill: '#0E8aa0', 'font-size': 11, 'font-weight': 600, 'font-family': 'IBM Plex Mono, monospace' }, txt('--'));
+  svg.appendChild(airT);
+  const tfbT = el('text', { x: cx, y: bbot - 92, fill: '#ffd9a0', 'font-size': 13, 'font-weight': 600, 'text-anchor': 'middle', 'font-family': 'IBM Plex Mono, monospace' }, txt('--'));
+  svg.appendChild(tfbT);
+  const tripT = el('text', { x: cx, y: by + bh / 2, fill: '#C0392B', 'font-size': 15, 'font-weight': 800, 'text-anchor': 'middle', ...HALO }, txt(''));
+  svg.appendChild(tripT);
+  host.appendChild(svg);
+
+  return {
+    update(f) {
+      const s = f.state, act = f.actuators, il = f.interlocks || {}, lim = f.limits || {};
+      const uf = act.heaters[0], ua = act.valves[0], O2 = s.levels[0], Tout = s.temps[0], Tfb = (s.tfb || [0])[0];
+      const tripped = il.heater_trip && il.heater_trip[0];
+      // flames: size ∝ fuel; colour by O₂ (sooty red when starved, lean blue-ish when high)
+      flames.forEach((fl, i) => {
+        const fx = cx - 56 + i * 56, hgt = 6 + (tripped ? 0 : uf) * 62;
+        fl.setAttribute('d', `M${fx - 12},${bbot - 6} Q${fx},${bbot - 6 - hgt} ${fx + 12},${bbot - 6} Z`);
+        fl.setAttribute('fill', tripped || uf < 0.02 ? '#3a4552' : O2 < 1.6 ? '#E4572E' : O2 > 6 ? '#7FB8FF' : '#FF9E2C');
+        fl.setAttribute('opacity', tripped || uf < 0.02 ? 0.5 : 0.92);
+      });
+      o2T.textContent = `O₂ ${O2.toFixed(2)}%`;
+      o2T.setAttribute('fill', O2 < 1.8 ? '#C0392B' : '#0E8aa0');
+      o2SpT.textContent = `SP ${f.setpoints.h_sp[0].toFixed(1)}%`;
+      outT.textContent = `${Tout.toFixed(1)}°`;
+      outT.setAttribute('fill', Tout >= (lim.t_high || 395) ? '#C0392B' : '#0B1220');
+      outSp.textContent = `SP ${f.setpoints.t_sp[0].toFixed(0)}°`;
+      feedT.textContent = `${s.t_cold.toFixed(0)}°C · ${(s.feed_rate ? s.feed_rate[0] : 0).toFixed(0)} kg/s`;
+      fuelT.textContent = `${(uf * 100).toFixed(0)}% · ${(s.heater_power[0] * 1e-6).toFixed(1)} MW`;
+      airT.textContent = `${(ua * 100).toFixed(0)}%`;
+      tfbT.textContent = `${L('炉膛', 'firebox', '炉内')} ${Tfb.toFixed(0)}°C`;
+      setFlow(feed, 1, 1); setFlow(prod, 1, 1); setFlow(flue, tripped ? 0 : uf, 1);
+      setFlow(fuel, tripped ? 0 : uf, 1); setFlow(air, ua, 1);
+      tripT.textContent = tripped ? L('⛔ 燃料联锁切断', '⛔ FUEL TRIPPED', '⛔ 燃料遮断') : '';
+    },
+  };
 }
 
 // ---------------- Cascade ----------------

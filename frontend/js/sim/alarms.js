@@ -14,6 +14,10 @@ export class AlarmMonitor {
   bind(model) {
     this.model = model; this.n = model.n;
     this.safety = { ...DEFAULT_SAFETY, ...(model.safety ? model.safety() : {}) };
+    // per-model temp limits (e.g. a fired heater runs at 370°C, not 80) + display
+    // labels for the "level" quantity (the heater stores flue O₂ in the level slot)
+    this.tl = { high: LIMITS.t_high, trip: LIMITS.t_trip, ...(model.tempLimits ? model.tempLimits() : {}) };
+    this.lbl = (model.limitLabels ? model.limitLabels() : {}).level || null;
     this.reset();
   }
   reset() { this.heaterTrip = new Array(this.n).fill(false); this.pumpTrip = false; this.feedTrip = false; }
@@ -21,6 +25,9 @@ export class AlarmMonitor {
   evaluate(s) {
     const L = LIMITS, hmax = this.model.heightMax, sf = this.safety, alarms = [];
     const add = (tank, type, sev, msg, value) => alarms.push({ tank, type, severity: sev, message: msg, value: +value.toFixed(3) });
+    const lb = this.lbl;
+    const lname = (i) => lb ? lb.name : `Tank ${i + 1} level`;
+    const lval = (h) => lb ? `${h.toFixed(lb.dp ?? 2)}${lb.unit || ''}` : `${h.toFixed(2)} m`;
 
     for (let i = 0; i < this.n; i++) {
       const hasLevel = i < s.levels.length, T = s.temps[i];
@@ -28,18 +35,19 @@ export class AlarmMonitor {
       if (hasLevel) {
         const h = s.levels[i];
         const hHi = L.h_high_frac * hmax[i], hLo = L.h_low_frac * hmax[i], hDf = L.h_dryfire_frac * hmax[i];
-        if (h >= hHi) add(i, 'level_high', h >= L.h_overflow_frac * hmax[i] ? 'critical' : 'warning', `Tank ${i + 1} level HIGH (${h.toFixed(2)} m)`, h);
-        else if (h <= hLo) add(i, 'level_low', h <= hDf ? 'critical' : 'warning', `Tank ${i + 1} level LOW (${h.toFixed(2)} m)`, h);
+        if (h >= hHi) add(i, 'level_high', h >= L.h_overflow_frac * hmax[i] ? 'critical' : 'warning', `${lname(i)} HIGH (${lval(h)})`, h);
+        else if (h <= hLo) add(i, 'level_low', h <= hDf ? 'critical' : 'warning', `${lname(i)} LOW (${lval(h)})`, h);
         dryTrip = sf.dryFire && h <= hDf;
         dryClear = h >= hDf + L.h_reset_margin * hmax[i];
       }
-      if (T >= L.t_high) add(i, 'temp_high', T >= L.t_trip ? 'critical' : 'warning', `Unit ${i + 1} temperature HIGH (${T.toFixed(1)} C)`, T);
-      const otHeater = sf.overTempAction === 'heater' && T >= L.t_trip;
-      const tClear = T <= L.t_trip - L.t_reset_margin;
-      // heater interlock (hysteretic): tripped by dry-fire or (heater-mode) over-temp
+      if (T >= this.tl.high) add(i, 'temp_high', T >= this.tl.trip ? 'critical' : 'warning', `Unit ${i + 1} temperature HIGH (${T.toFixed(1)} C)`, T);
+      const otHeater = sf.overTempAction === 'heater' && T >= this.tl.trip;
+      const tClear = T <= this.tl.trip - L.t_reset_margin;
+      // heater interlock (hysteretic): tripped by dry-fire / low-low "level" (e.g. flue
+      // O₂ for the fired heater) or (heater-mode) over-temp
       if (dryTrip || otHeater) this.heaterTrip[i] = true;
       else if (dryClear && tClear) this.heaterTrip[i] = false;
-      if (this.heaterTrip[i]) add(i, 'heater_interlock', 'critical', `Unit ${i + 1} heater TRIPPED (${dryTrip ? 'dry-fire' : 'over-temp'})`, dryTrip ? s.levels[i] : T);
+      if (this.heaterTrip[i]) add(i, 'heater_interlock', 'critical', `Unit ${i + 1} heater TRIPPED (${dryTrip ? (lb && lb.lowReason ? lb.lowReason : 'dry-fire') : 'over-temp'})`, dryTrip ? s.levels[i] : T);
     }
 
     // overflow -> pump trip (level scenarios)
@@ -51,8 +59,8 @@ export class AlarmMonitor {
 
     // over-temp -> feed (pump) trip, e.g. reactor runaway protection (hysteretic)
     if (sf.overTempAction === 'pump') {
-      const hot = s.temps.some((T) => T >= L.t_trip);
-      const cool = s.temps.every((T) => T <= L.t_trip - L.t_reset_margin);
+      const hot = s.temps.some((T) => T >= this.tl.trip);
+      const cool = s.temps.every((T) => T <= this.tl.trip - L.t_reset_margin);
       if (hot) this.feedTrip = true; else if (cool) this.feedTrip = false;
       if (this.feedTrip) { this.pumpTrip = true; add(-1, 'overtemp_interlock', 'critical', 'Feed TRIPPED (over-temp / runaway protection)', 0); }
       else this.pumpTrip = false;

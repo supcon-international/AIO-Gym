@@ -3,8 +3,8 @@
 // controlled levels + every tank temperature) with gain tuning, the
 // scenario-specific config (quadruple-tank split ratios gamma), and the
 // disturbance/fault toggles. All actions go to the engine via the bus.
-import { t } from './i18n.js?v=15';
-import { BUILTIN_POLICIES } from './sim/controllers.js?v=15';
+import { t } from './i18n.js?v=19';
+import { BUILTIN_POLICIES } from './sim/controllers.js?v=19';
 
 function h(tag, props = {}, ...kids) {
   const e = document.createElement(tag);
@@ -26,6 +26,7 @@ const DIST_LABEL = {
   heater_fault: () => t('加热器失效（卡关）', 'Heater dead (stuck off)', '加熱器故障（オフ固着）'),
   valve_stuck: () => t('阀卡死', 'Valve stuck', 'バルブ固着'),
   pump_trip: () => t('泵跳闸（无进料）', 'Pump trip (no inflow)', 'ポンプトリップ（供給なし）'),
+  fuel_lhv: () => t('燃料热值漂移', 'Fuel heating-value shift', '燃料発熱量ドリフト'),
 };
 
 // The economic reward each RL policy optimizes (mirrors aiogym/env.py ECON). Per step:
@@ -39,6 +40,8 @@ const REWARD_FN = {
                nZh: '达标前提下最省加热能耗。', nEn: 'Minimize heating energy subject to on-spec.', nJa: '規格達成を前提に加熱エネルギーを最小化。' },
   hvac:      { zh: 'r = −1.2·功率(kW) − 7·越界(室温 ∉ [20,24]°C)', en: 'r = −1.2·power(kW) − 7·band(T ∉ [20,24]°C)', ja: 'r = −1.2·出力(kW) − 7·範囲外(室温 ∉ [20,24]°C)',
                nZh: '室温维持在 20–24°C 舒适区内,最省冷/热功率。', nEn: 'Keep rooms in the 20–24°C comfort band at minimum power.', nJa: '室温を 20–24°C の快適域に保ちつつ冷暖房出力を最小化。' },
+  heater:    { zh: 'r = −0.005·燃料功率(kW) − 30·越带(出口 ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)', en: 'r = −0.005·fired duty(kW) − 30·band(T_out ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)', ja: 'r = −0.005·燃料出力(kW) − 30·帯域外(出口 ∉ [362,378]°C, O₂ ∉ [1.6,5.5]%)',
+               nZh: 'RL 在线调出口温度 SP(贴规格下沿)+ O₂ SP(贴低氧边缘):都省燃料,但热值/负荷波动时要留裕量——固定 SP 两头吃亏。', nEn: 'RL trims the T_out SP (ride the spec edge) + O₂ SP (low excess air): both save fuel, but LHV/load swings demand margin — fixed SPs lose either way.', nJa: 'RL が出口温度 SP(規格下限側)と O₂ SP(低過剰空気)をオンライン調整:どちらも省燃料、だが発熱量・負荷変動時は余裕が必要——固定 SP は両損。' },
 };
 
 export function buildControls(bus, meta, catalog) {
@@ -79,17 +82,22 @@ export function buildControls(bus, meta, catalog) {
     const ctrl = meta.controlled_levels || [];
     const w = h('div');
 
-    // level setpoints (only controlled)
-    w.append(h('div', { class: 'group-title' }, t('液位设定 (m)', 'Level SP (m)', '液位設定値 (m)')));
+    // level setpoints (only controlled). A model may relabel/rescale the "level"
+    // quantity via metadata.sp_spec (the fired heater stores flue O₂ there).
+    const spec = meta.sp_spec || {};
+    const lv = spec.level || { label: ['液位设定 (m)', 'Level SP (m)', '液位設定値 (m)'], min: 0, max: 0.8, step: 0.01 };
+    const tv = spec.temp || { label: ['温度设定 (°C)', 'Temp SP (°C)', '温度設定値 (°C)'], min: 10, max: 90, step: 1 };
+    const lvDp = lv.step < 0.1 ? 2 : 1, tvDp = tv.step < 1 ? 1 : 0;
+    w.append(h('div', { class: 'group-title' }, t(...lv.label)));
     ctrl.forEach((idx) => {
-      const inp = h('input', { type: 'number', step: 0.01, min: 0, max: 0.8, value: (sp.h_sp[idx] ?? 0.4).toFixed(2), onchange: sendSP });
+      const inp = h('input', { type: 'number', step: lv.step, min: lv.min, max: lv.max, value: (sp.h_sp[idx] ?? lv.min).toFixed(lvDp), onchange: sendSP });
       inp.dataset.hsp = idx;
       w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[idx]), inp, h('span')));
     });
     // temperature setpoints (every tank)
-    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t('温度设定 (°C)', 'Temp SP (°C)', '温度設定値 (°C)')));
+    w.append(h('div', { class: 'group-title', style: 'margin-top:10px' }, t(...tv.label)));
     for (let i = 0; i < n; i++) {
-      const inp = h('input', { type: 'number', step: 1, min: 10, max: 90, value: (sp.t_sp[i] ?? 50).toFixed(0), onchange: sendSP });
+      const inp = h('input', { type: 'number', step: tv.step, min: tv.min, max: tv.max, value: (sp.t_sp[i] ?? 50).toFixed(tvDp), onchange: sendSP });
       inp.dataset.tsp = i;
       w.append(h('div', { class: 'sp-row' }, h('label', {}, meta.tank_labels[i]), inp, h('span')));
     }
@@ -101,8 +109,8 @@ export function buildControls(bus, meta, catalog) {
       bus.send({ type: 'set_setpoints', h_sp, t_sp });
     }
 
-    // demand valve (cascade only)
-    if (A.valves.length) {
+    // demand valve (only where the model declares one — e.g. cascade's V-3)
+    if (meta.demand_valve_index != null) {
       const dv = cfg?.demand_valve ?? 0.5;
       const dval = h('span', { class: 'val' }, `${(dv * 100) | 0}%`);
       w.append(h('div', { class: 'divider' }), h('div', { class: 'group-title' }, t('需求阀（扰动）', 'Demand valve (disturbance)', '需要バルブ（外乱）')),
@@ -207,6 +215,7 @@ export function buildControls(bus, meta, catalog) {
     for (const key in cat) {
       const def = cat[key];
       if (def.needs === 'valves' && !A.valves.length) continue;  // hide valve faults when no valves
+      if (def.needs === 'fuel' && meta.scenario !== 'heater') continue;  // LHV shift only exists on the fired heater
       const toggle = h('div', { class: 'toggle', 'data-dist': key, onclick: (e) => {
         const on = e.target.classList.toggle('on');
         if (on) bus.send({ type: 'set_disturbance', dtype: key, params: readParams(key) });

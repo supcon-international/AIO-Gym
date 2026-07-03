@@ -72,7 +72,7 @@ def eval_policy(rlpd, env, episodes=12, seed=5000):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scenario", default="cascade", choices=["cascade", "quadruple", "cstr", "hvac"])
+    ap.add_argument("--scenario", default="cascade", choices=["cascade", "quadruple", "cstr", "hvac", "heater"])
     ap.add_argument("--reward-mode", default="kpi", choices=["kpi", "economic", "track"])
     ap.add_argument("--control-dt", type=float, default=0.5)
     ap.add_argument("--episode-steps", type=int, default=400)

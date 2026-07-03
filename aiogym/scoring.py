@@ -17,6 +17,7 @@ class KPIScorer:
     def __init__(self, model):
         self.model = model
         self.ctrl = model.controlled_levels()
+        self.l_div = float(getattr(model, "kpi_level_scale", 1.0))   # level-err unit -> meters (heater: O2 %)
         self.energy_scored = bool(getattr(model, "energy_scored", True))
         self.reset()
 
@@ -32,7 +33,7 @@ class KPIScorer:
         (the reward magnitude). reward = -step_penalty(...)."""
         n = self.model.n
         te_sum = sum(abs(temps[i] - t_sp[i]) for i in range(n))
-        le_sum = sum(abs(levels[i] - h_sp[i]) for i in self.ctrl) if self.ctrl else 0.0
+        le_sum = (sum(abs(levels[i] - h_sp[i]) for i in self.ctrl) / self.l_div) if self.ctrl else 0.0
         excess_w = max(0.0, heat_w - ideal_w) if self.energy_scored else 0.0
 
         # instantaneous penalty (matches the time-averaged report() in expectation)

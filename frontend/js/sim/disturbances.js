@@ -7,6 +7,7 @@ export const CATALOG = {
   ambient: { label: 'Ambient temp change', kind: 'disturbance', default: { value: 5.0 } },
   demand_surge: { label: 'Downstream demand surge', kind: 'disturbance', default: { value: 0.0006 } },
   sensor_noise: { label: 'Sensor noise', kind: 'disturbance', default: { level_std: 0.01, temp_std: 0.4 } },
+  fuel_lhv: { label: 'Fuel heating-value shift', kind: 'disturbance', default: { value: -0.12 }, needs: 'fuel' },
   heater_fault: { label: 'Heater dead (stuck off)', kind: 'fault', default: { index: 1 } },
   valve_stuck: { label: 'Valve stuck', kind: 'fault', default: { index: 0, value: 0.15 }, needs: 'valves' },
   pump_trip: { label: 'Pump trip (no inflow)', kind: 'fault', default: {} },
@@ -40,6 +41,7 @@ export class DisturbanceManager {
     if (this.active.cold_inlet) env.t_cold = p.t_cold + this.active.cold_inlet.value;
     if (this.active.ambient) env.t_amb = p.t_amb + this.active.ambient.value;
     if (this.active.demand_surge) env.extra_outflow = Math.max(0, this.active.demand_surge.value);
+    if (this.active.fuel_lhv) env.lhv_factor = Math.max(0.5, 1 + this.active.fuel_lhv.value);   // fuel-gas quality shift
     return env;
   }
 

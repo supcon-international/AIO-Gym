@@ -22,6 +22,7 @@ GAINS = {
     "quadruple": {"level_pump": (6.0, 0.25, 0.0), "level_valve": (0.0, 0.0, 0.0), "temp": (0.05, 0.012, 0.0)},
     "cstr": {"level_pump": (0.0, 0.0, 0.0), "level_valve": (0.0, 0.0, 0.0), "temp": (0.08, 0.02, 0.0)},
     "hvac": {"temp": (0.18, 0.03, 0.0)},
+    "heater": {"level_pump": (0.0, 0.0, 0.0), "level_valve": (0.15, 0.05, 0.0), "temp": (0.035, 0.010, 0.0)},
 }
 PAIRING = {
     "cascade": {"level": [("pump", 0, 0), ("valve", 0, 1), ("valve", 1, 2)],
@@ -30,6 +31,8 @@ PAIRING = {
                   "temp": [(0, 0, False), (1, 1, False), (2, 2, False), (3, 3, False)], "demand_valve_index": None, "holds": []},
     "cstr": {"level": [], "temp": [(0, 0, True)], "demand_valve_index": None, "holds": [("pump", 0, 0.5)]},
     "hvac": {"level": [], "temp": [(0, 0, False), (1, 1, False)], "demand_valve_index": None, "holds": []},
+    # industrial structure: T_out PID moves fuel; O2-trim PID moves the air damper
+    "heater": {"level": [("valve", 0, 0)], "temp": [(0, 0, False)], "demand_valve_index": None, "holds": []},
 }
 
 
@@ -106,11 +109,14 @@ class MPCAgent:
         self.nx = len(model.initial_state())
         self.ctrl = model.controlled_levels()
         self.Ts, self.P, self.move_supp, self.du_max = Ts, P, move_supp, du_max
-        self.csl, self.cst = cv_scale_level, cv_scale_temp
+        cs = model.cv_scales() if hasattr(model, "cv_scales") else {}
+        self.csl, self.cst = cs.get("level", cv_scale_level), cs.get("temp", cv_scale_temp)
         self.reset()
 
     def reset(self):
-        self.u = np.array([0.35] * self.nP + [0.5] * self.nV + [0.0] * self.nH, dtype=np.float64)
+        init = self.m.mpc_init() if hasattr(self.m, "mpc_init") else None
+        self.u = (np.asarray(init, dtype=np.float64) if init is not None
+                  else np.array([0.35] * self.nP + [0.5] * self.nV + [0.0] * self.nH, dtype=np.float64))
         self._clock = 1e9
 
     def _unpack(self, u):
@@ -122,6 +128,9 @@ class MPCAgent:
             return np.array([meas["conc"][0], meas["temps"][0]], dtype=np.float64)
         if s == "hvac":
             return np.array([meas["temps"][0], meas["temps"][1]], dtype=np.float64)
+        if s == "heater":
+            tfb = meas.get("tfb", [700.0])[0]
+            return np.array([tfb, meas["temps"][0], meas["levels"][0]], dtype=np.float64)
         x = np.zeros(self.nx)
         for i in range(self.m.n):
             x[2 * i] = meas["levels"][i]
@@ -184,8 +193,22 @@ class MPCAgent:
             H += G.T @ WG
             g += G.T @ (Wcv * e)
         H += self.move_supp * np.eye(nu)
-        du = np.linalg.solve(H, -g)
-        du = np.clip(du, -self.du_max, self.du_max)
+        # box-QP via cyclic coordinate descent (mirror of mpc.js): a joint solve-then-
+        # clip lets a saturated MV poison the others (near-collinear MVs like the
+        # heater's fuel/air make H near-singular); solving each move within its own
+        # rate+box bound keeps saturated MVs at their FEASIBLE contribution.
+        lo = np.maximum(-self.du_max, 0.0 - u0)
+        hi = np.minimum(self.du_max, 1.0 - u0)
+        du = np.zeros(nu)
+        for _ in range(6):
+            moved = 0.0
+            for j in range(nu):
+                s_ = g[j] + sum(H[j, k] * du[k] for k in range(nu) if k != j)
+                cand = float(np.clip(-s_ / (H[j, j] or 1e-9), lo[j], hi[j]))
+                moved = max(moved, abs(cand - du[j]))
+                du[j] = cand
+            if moved < 1e-6:
+                break
         self.u = np.clip(u0 + du, 0.0, 1.0)
 
 
@@ -196,6 +219,8 @@ def make_meas(env):
     meas = {"levels": lv, "temps": tp, "t_cold": e["t_cold"], "t_amb": e["t_amb"]}
     if hasattr(env.model, "conc"):
         meas["conc"] = env.model.conc(env.integ.x)
+    if env.model.scenario == "heater":
+        meas["tfb"] = [float(env.integ.x[0])]
     return meas
 
 

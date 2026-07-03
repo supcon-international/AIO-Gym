@@ -17,7 +17,7 @@ __all__ = ["AIOGymNativeEnv", "make_model", "obs_vector", "Integrator", "SCENARI
 try:
     from gymnasium.envs.registration import register
 
-    _IDS = {"cascade": "Cascade", "quadruple": "Quadruple", "cstr": "CSTR", "hvac": "HVAC"}
+    _IDS = {"cascade": "Cascade", "quadruple": "Quadruple", "cstr": "CSTR", "hvac": "HVAC", "heater": "Heater"}
     for _scn, _name in _IDS.items():
         register(id=f"AIOGym/{_name}-v0", entry_point="aiogym.env:AIOGymNativeEnv",
                  kwargs={"scenario": _scn})

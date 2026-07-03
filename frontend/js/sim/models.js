@@ -2,7 +2,7 @@
 // the ODE right-hand side, topology metadata, default control pairing and the
 // ideal-power reference for scoring. Same equations and numbers as the Python
 // reference, so behaviour matches. A model is integrated by ../sim/kernel.js.
-import { t } from '../i18n.js?v=15';
+import { t } from '../i18n.js?v=19';
 
 const RHO = 1000, CP = 4186, G = 9.81, RHO_CP = RHO * CP;
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -301,7 +301,103 @@ class HVACModel {
   }
 }
 
-const MODELS = { cascade: CascadeModel, quadruple: QuadrupleModel, cstr: CSTRModel, hvac: HVACModel };
+// ---------------- Scenario 5: refinery fired heater (3 states: T_fb, T_out, O2) ----------------
+// The workhorse of CDU/hydrotreater/reformer units: burn fuel gas in a firebox to
+// heat the process feed to a target outlet temperature. MVs: fuel valve (heater
+// slot -> the over-temp interlock cuts fuel = tube protection) and air damper
+// (valve slot). Flue O2 lives in the LEVEL slot (range 0-12%), which reuses the
+// level alarm/interlock machinery as a burner-management system: low-O2 alarm at
+// 1.8%, low-low O2 fuel trip at 1.2% (hysteretic). The economics: stack loss grows
+// with excess air (flue mass x (T_fb - amb)), so the fuel-optimal point hugs the
+// LOW-O2 edge -- but fuel-quality (LHV) and feed disturbances push toward it, so a
+// conservative fixed O2 SP wastes fuel and an aggressive one risks the trip.
+class FiredHeaterModel {
+  constructor() {
+    this.scenario = 'heater'; this.n = 1; this.dtMicro = 0.05;
+    this.p = {
+      Fmax: 1.0, lhv: 46e6, stoich: 17.2, Amax: 40, cp_g: 1400,
+      UA: 42e3, Cfb: 3.5e6, Cc: 7e6, Fp0: 88, cp_p: 2300, tau_o2: 20,
+      t_cold: 280, t_amb: 20, h_floor: 1e-3,
+    };
+  }
+  actuatorCounts() { return [0, 1, 1]; }        // [-] [air damper] [fuel valve]
+  get heightMax() { return [12]; }              // O2 display range 0-12% -> low alarm 1.8%, low-low trip 1.2%
+  _comb(act, env) {
+    const p = this.p;
+    const Ff = act.heaters[0] * p.Fmax;
+    const A = act.valves[0] * p.Amax;
+    const Ast = p.stoich * Ff;
+    const c = Math.min(1, A / maxv(Ast, 1e-6));                       // completeness: sub-stoich burns only what air supports
+    const Q = Ff * c * p.lhv * (env.lhv_factor ?? 1);
+    const o2eq = 20.9 * maxv(0, A - Ast * c) / maxv(A + Ff * c, 1e-6); // ->0 when lambda<=1, ->20.9 as fuel->0
+    const mg = A + Ff * c;
+    return { Ff, A, Q, o2eq, mg };
+  }
+  derivatives(x, act, env) {
+    const p = this.p, Tfb = x[0], Tout = x[1], O2 = x[2];
+    const { Q, o2eq, mg } = this._comb(act, env);
+    const Fp = p.Fp0 + (env.extra_outflow || 0) * 30000;              // demand surge -> feed throughput up
+    const Tin = env.t_cold, Tm = (Tin + Tout) / 2;
+    return [
+      (Q - p.UA * (Tfb - Tm) - mg * p.cp_g * (Tfb - env.t_amb)) / p.Cfb,
+      (Fp * p.cp_p * (Tin - Tout) + p.UA * (Tfb - Tm)) / p.Cc,
+      (o2eq - O2) / p.tau_o2,
+    ];
+  }
+  buildState(x, act, env, t) {
+    const p = this.p, { Ff, Q } = this._comb(act, env);
+    const Fp = p.Fp0 + (env.extra_outflow || 0) * 30000;
+    return {
+      t, levels: [maxv(x[2], 0)], temps: [x[1]], volumes: [],
+      heater_power: [Ff * p.lhv * (env.lhv_factor ?? 1)],             // fired duty (fuel power, W)
+      pump_flow: [], pump_power: [], tank_outflow: [],
+      tfb: [x[0]], feed_rate: [Fp], fired_frac: [Q > 0 ? 1 : 0],
+      t_cold: env.t_cold, t_amb: env.t_amb,
+    };
+  }
+  initialState() { return [700, 350, 3.5]; }    // warm start near the operating point
+  clampState(x) {
+    if (x[0] < 20) x[0] = 20; if (x[0] > 1400) x[0] = 1400;
+    if (x[1] < 20) x[1] = 20; if (x[1] > 650) x[1] = 650;
+    if (x[2] < 0) x[2] = 0; if (x[2] > 20.9) x[2] = 20.9;
+    return x;
+  }
+  controlledLevels() { return [0]; }            // "level" 0 = flue O2 (controlled by the air damper)
+  defaultSetpoints() { return [{ 0: 3.0 }, [370]]; }
+  defaultGains() {
+    return { level_pump: { kp: 0, ki: 0, kd: 0 }, level_valve: { kp: 0.15, ki: 0.05, kd: 0 }, temp: { kp: 0.035, ki: 0.010, kd: 0 } };
+  }
+  // industrial structure: outlet-temp PID moves fuel, O2-trim PID moves the damper
+  controlPairing() { return { level: [['valve', 0, 0]], temp: [[0, 0, false]], demand_valve_index: null, holds: [] }; }
+  idealPower() { return 0; }
+  energyScored() { return false; }
+  safety() { return { dryFire: true, overflow: false, overTempAction: 'heater' }; }
+  tempLimits() { return { high: 395, trip: 415 }; }                    // tube-skin protection: trip cuts fuel
+  limitLabels() { return { level: { name: 'O₂', unit: '%', dp: 1, lowReason: 'low-O₂' } }; }
+  cvScales() { return { level: 1.2, temp: 12 }; }                      // MPC error normalisation: 1.2% O2 ~ 12 degC
+  kpiLevelScale() { return 25; }                                       // KPI: 1% O2 error ≈ 4 cm of level error
+  mpcInit() { return [0.30, 0.55]; }                                   // [air, fuel] near the operating point (fuel=0 is gradient-degenerate)
+  setConfig() {}
+  metadata() {
+    return {
+      scenario: 'heater', topology: 'heater', name: t('管式加热炉', 'Fired Heater', '管式加熱炉'), n_tanks: 1,
+      tank_labels: [t('F-1 加热炉', 'F-1 heater', 'F-1 加熱炉')],
+      actuators: { pumps: [], valves: [t('风门 FD-1', 'Air damper FD-1', 'ダンパー FD-1')], heaters: [t('燃料阀 FV-1', 'Fuel valve FV-1', '燃料弁 FV-1')] },
+      controlled_levels: [0], height_max: this.heightMax,
+      pump_flow_max: [], heater_max: [this.p.Fmax * this.p.lhv], config: {},
+      sp_spec: { level: { label: ['烟气 O₂ 设定 (%)', 'Flue O₂ SP (%)', '排ガス O₂ 設定 (%)'], min: 1, max: 8, step: 0.1 },
+                 temp: { label: ['出口温度设定 (°C)', 'Outlet Temp SP (°C)', '出口温度設定 (°C)'], min: 320, max: 400, step: 1 } },
+      trends: [
+        { label: t('出口温度 (°C)', 'Outlet Temp (°C)', '出口温度 (°C)'), field: 'temps', sp: 't_sp', spIdx: [0], fmt: 1 },
+        { label: t('烟气 O₂ (%)', 'Flue O₂ (%)', '排ガス O₂ (%)'), field: 'levels', sp: 'h_sp', spIdx: [0], fmt: 2 },
+        { label: t('燃料功率 (MW)', 'Fired Duty (MW)', '燃料出力 (MW)'), field: 'heater_power', scale: 1e-6, fmt: 1 },
+        { label: t('炉膛温度 (°C)', 'Firebox Temp (°C)', '炉内温度 (°C)'), field: 'tfb', fmt: 0 },
+      ],
+    };
+  }
+}
+
+const MODELS = { cascade: CascadeModel, quadruple: QuadrupleModel, cstr: CSTRModel, hvac: HVACModel, heater: FiredHeaterModel };
 export function makeModel(scenario) {
   const M = MODELS[scenario] || CascadeModel;
   return new M();
