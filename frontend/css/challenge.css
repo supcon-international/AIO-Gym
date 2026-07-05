@@ -73,16 +73,6 @@ body.cd{
 .cd-lead{font-size:11px; color:var(--cd-dim); font-weight:600; white-space:nowrap}
 .cd-lead.you{color:var(--cd-you)} .cd-lead.rl{color:var(--cd-rl)}
 
-/* ---------------- Round goals ---------------- */
-.cd-goals{flex:0 0 auto; display:flex; flex-wrap:wrap; justify-content:center; gap:6px; padding:2px 12px 0}
-.cd-goals[hidden]{display:none}
-.cd-goal{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:500; color:var(--cd-text);
-  background:var(--cd-panel); border:1px solid var(--cd-line); border-radius:8px; padding:4px 10px; white-space:nowrap}
-.cd-goal .gi{font-size:12px}
-.cd-goal b{font-weight:700}
-.cd-goal.crit{border-color:rgba(255,77,77,.35); color:#FFB4B4}
-.cd-goal.money{border-color:rgba(178,237,29,.25)}
-
 /* ---------------- Plant P&ID — two views (you | RL), reused animated schematics ---------------- */
 .cd-vs-cap{font-size:9px; letter-spacing:1px; color:var(--cd-dim-2); font-weight:600; text-transform:uppercase}
 .cd-arena{flex:1 1 auto; min-height:0; margin:6px 12px 0; display:flex; flex-direction:column; gap:8px}
@@ -146,6 +136,34 @@ body.cd{
 .cd-toast.out{animation:cdToastOut .3s ease both}
 @keyframes cdToastIn{from{opacity:0; transform:translateY(-12px) scale(.96)}to{opacity:1; transform:none}}
 @keyframes cdToastOut{to{opacity:0; transform:translateY(-10px)}}
+
+/* ---------------- Guided wizard (spotlight + step card) ---------------- */
+.cd-wiz{position:fixed; inset:0; z-index:60}
+.cd-wiz[hidden]{display:none}
+.cd-wiz-hole{
+  position:absolute; border-radius:14px; pointer-events:none;
+  box-shadow:0 0 0 9999px rgba(4,8,14,.84);
+  outline:2px solid var(--cd-you); outline-offset:3px;
+  transition:top .28s ease, left .28s ease, width .28s ease, height .28s ease;
+}
+.cd-wiz-card{
+  position:absolute; left:50%; transform:translateX(-50%);
+  width:min(88vw, 380px); background:linear-gradient(180deg,#101B28,#0B1420);
+  border:1px solid var(--cd-line-2); border-radius:15px; padding:16px 17px 14px;
+  box-shadow:0 18px 50px rgba(0,0,0,.55); animation:cdFade .2s ease both;
+}
+.cd-wiz-step{font-size:10px; font-weight:700; letter-spacing:1.2px; color:var(--cd-dim-2); text-transform:uppercase}
+.cd-wiz-title{margin:5px 0 6px; font-size:16.5px; font-weight:800; letter-spacing:-.2px}
+.cd-wiz-title .em{color:var(--cd-you)}
+.cd-wiz-body{font-size:13px; color:var(--cd-dim); line-height:1.55}
+.cd-wiz-body b{color:var(--cd-text)}
+.cd-wiz-body .crit{color:#FF8A8A; font-weight:700}
+.cd-wiz-btns{display:flex; gap:8px; margin-top:13px}
+.cd-wiz-btns .cd-btn{padding:11px; font-size:14px; margin:0}
+.cd-wiz-btns .skip{flex:0 0 auto; width:auto; padding:11px 14px}
+.cd-wiz-dots{display:flex; gap:5px; justify-content:center; margin-top:11px}
+.cd-wiz-dots i{width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.16)}
+.cd-wiz-dots i.on{background:var(--cd-you)}
 
 /* ---------------- Overlay (intro / results) ---------------- */
 .cd-overlay{

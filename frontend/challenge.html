@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070D15" />
   <title>AIO-Gym · 挑战 RL</title>
   <link rel="stylesheet" href="./css/tier0.css" />
-  <link rel="stylesheet" href="./css/challenge.css?v=12" />
+  <link rel="stylesheet" href="./css/challenge.css?v=13" />
 </head>
 <body class="cd">
   <div class="cd-app" id="cd-app">
@@ -18,6 +18,7 @@
         <span class="cd-title-main" data-zh="挑战 RL" data-en="Beat the RL" data-ja="RL に挑戦">挑战 RL</span>
         <span class="cd-title-sub mono" id="cd-sub">—</span>
       </div>
+      <button id="cd-help" class="cd-lang" title="重看引导 / Replay the guide" hidden>?</button>
       <span class="cd-clock mono" id="cd-clock" title="剩余时间 / Time left">0:00</span>
       <button id="cd-lang" class="cd-lang" title="中文 / English / 日本語">EN</button>
     </header>
@@ -38,9 +39,6 @@
         <span class="cd-score-val mono" id="cd-rl-profit">0</span>
       </div>
     </section>
-
-    <!-- ===== Round goals (what to control, what costs, the red line) ===== -->
-    <section class="cd-goals" id="cd-goals" hidden></section>
 
     <!-- ===== Plant P&ID — two views: you | RL, same plant, side by side ===== -->
     <section class="cd-arena">
@@ -67,9 +65,15 @@
     <div class="cd-toast-host" id="cd-toast"></div>
   </div>
 
+  <!-- ===== Guided wizard: spotlight + step card ===== -->
+  <div class="cd-wiz" id="cd-wiz" hidden>
+    <div class="cd-wiz-hole" id="cd-wiz-hole"></div>
+    <div class="cd-wiz-card" id="cd-wiz-card"></div>
+  </div>
+
   <!-- ===== Overlay: intro / results ===== -->
   <div class="cd-overlay" id="cd-overlay"><div class="cd-card" id="cd-card"></div></div>
 
-  <script type="module" src="./js/challenge/challenge.js?v=24"></script>
+  <script type="module" src="./js/challenge/challenge.js?v=25"></script>
 </body>
 </html>

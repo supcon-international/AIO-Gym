@@ -5,9 +5,9 @@
 // product credit − energy×price − off-spec penalty. Costs are negative; HIGHER
 // always wins. Anti-idle: idling drifts off-spec and the penalty dwarfs the
 // energy saved. Reuses the sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=24';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=24';
-import { buildSchematic } from '../schematic.js?v=24';
+import { Engine } from '../sim/engine.js?v=25';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=25';
+import { buildSchematic } from '../schematic.js?v=25';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
@@ -34,10 +34,15 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'cold_inlet', warmBias: 0.5, mag: [4, 9], every: [14, 30], dur: [9, 18] },
     money: 'profit', compare: 'prod',
-    goals: () => [
-      { i: '🎯', c: '', h: t('贴着 <b>88°C</b> 跑 — 越近产量越高', 'Ride close to <b>88°C</b> — hotter = more yield', '<b>88°C</b> ギリギリで運転 — 高温ほど生産大') },
-      { i: '💰', c: 'money', h: t('产量赚钱 · 冷却费电', 'Yield earns · cooling costs', '生産で稼ぎ・冷却は電気代') },
-      { i: '⛔', c: 'crit', h: t('过 <b>92°</b> 失控,进料切断', 'Past <b>92°</b> = runaway, feed trips', '<b>92°</b> 超で暴走・供給遮断') },
+    wizard: () => [
+      { at: '.cd-arena', title: t('目标:贴着 <span class="em">88°C</span> 跑', 'Goal: ride close to <span class="em">88°C</span>', '目標:<span class="em">88°C</span> ギリギリで運転'),
+        body: t('这是放热反应器:越热反应越快、产量越高、赚得越多。上面两台一样的反应器,左边你开,右边 RL 开。', 'An exothermic reactor: hotter = faster reaction = more yield = more money. Two identical reactors — you run the left one, the RL runs the right.', '発熱反応器:高温ほど反応が速く生産も利益も大。同じ反応器が2基 — 左があなた、右が RL。') },
+      { at: '#cd-controls', title: t('操作:进料赚钱,冷却保命', 'Controls: feed earns, cooling saves you', '操作:供給で稼ぎ、冷却で守る'),
+        body: t('<b>进料</b>拉高 = 赚钱更快,但放热也更猛;<b>冷却</b>压住温度。加料越狠,冷却就要跟得越紧。', '<b>Feed</b> up = earn faster, but more heat released; <b>Cooling</b> holds the temperature down. The harder you feed, the harder you must cool.', '<b>供給</b>を上げるほど稼げるが発熱も激しい;<b>冷却</b>で温度を抑える。攻めるほど冷却も強く。') },
+      { at: '.cd-arena', title: t('红线:<span class="em">92°C</span> 失控联锁', 'Red line: runaway trip at <span class="em">92°C</span>', 'レッドライン:<span class="em">92°C</span> で暴走遮断'),
+        body: t('冲过 <span class="crit">92°C</span> 反应失控,安全联锁会<span class="crit">切断进料</span>——产量归零,眼睁睁看 RL 赚钱。', 'Past <span class="crit">92°C</span> the reaction runs away and the interlock <span class="crit">cuts your feed</span> — production stops while the RL keeps earning.', '<span class="crit">92°C</span> を超えると暴走、インターロックが<span class="crit">供給を遮断</span> — 生産停止、RL だけが稼ぎ続ける。') },
+      { at: '.cd-board', title: t('比什么:利润 ¥/h', 'Scoring: profit ¥/h', '勝負:利益 ¥/h'),
+        body: t('产量赚钱、冷却费电,合成<b>利润 ¥/h</b>,高者胜。RL 和你面对完全相同的扰动。', 'Yield earns, cooling costs — the net is <b>profit ¥/h</b>, higher wins. The RL faces exactly the same disturbances as you.', '生産で稼ぎ冷却は電気代 — 差引<b>利益 ¥/h</b>、高い方が勝ち。RL は同じ外乱に直面。') },
     ],
     bands: [[null, 88]],
   },
@@ -56,9 +61,13 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'ambient', warmBias: 0.5, mag: [6, 12], every: [13, 28], dur: [11, 21] },
     money: 'cost', compare: 'energy', bands: [[20, 24], [20, 24]],
-    goals: () => [
-      { i: '🎯', c: '', h: t('两个房间都保 <b>20–24°C</b>', 'Keep both rooms in <b>20–24°C</b>', '両室を <b>20–24°C</b> に維持') },
-      { i: '💰', c: 'money', h: t('空调越猛越费电 · 出带罚钱', 'Harder AC = more power · off-band = penalty', '空調が強いほど電気代・帯域外は罰金') },
+    wizard: () => [
+      { at: '.cd-arena', title: t('目标:两室都保 <span class="em">20–24°C</span>', 'Goal: keep both rooms in <span class="em">20–24°C</span>', '目標:両室を <span class="em">20–24°C</span> に'),
+        body: t('房间绿色 = 在舒适带内。室外温度会忽冷忽热,把房间拖出舒适带。', 'Green rooms = inside the comfort band. The outdoor weather swings hot and cold and drags the rooms off it.', '緑の部屋 = 快適帯内。外気温が急変し、部屋を帯域外へ引っ張る。') },
+      { at: '#cd-controls', title: t('操作:一台空调一根滑杆', 'Controls: one slider per AC unit', '操作:空調1台に1スライダー'),
+        body: t('<b>左 = 制冷,中间 = 关,右 = 制热</b>。开得越猛越费电——刚好够用才是最省的。', '<b>Left = cool, centre = off, right = heat</b>. The harder it runs, the more it costs — "just enough" is the cheap way.', '<b>左 = 冷房、中央 = オフ、右 = 暖房</b>。強いほど電気代がかさむ — 「ちょうど良い」が最安。') },
+      { at: '.cd-board', title: t('比什么:电费 ¥/h', 'Scoring: electricity ¥/h', '勝負:電気代 ¥/h'),
+        body: t('比<b>运行成本 ¥/h</b>,低者胜。注意:房间出带的罚钱远比省下的电费贵。', 'Lowest <b>operating cost ¥/h</b> wins. Careful: the off-band penalty far outweighs any power you save.', '<b>運転コスト ¥/h</b> が低い方の勝ち。帯域外ペナルティは節電分よりはるかに高い。') },
     ],
   },
   heater: {
@@ -76,10 +85,15 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'fuel_lhv', warmBias: 0.5, mag: [0.08, 0.15], every: [14, 28], dur: [12, 22] },
     money: 'cost', compare: 'energy', bands: [[362, 378]],
-    goals: () => [
-      { i: '🎯', c: '', h: t('出口稳在 <b>362–378°C</b>', 'Hold the outlet in <b>362–378°C</b>', '出口を <b>362–378°C</b> に維持') },
-      { i: '💰', c: 'money', h: t('燃料是大头 · 风大偷热', 'Fuel is the bill · excess air steals heat', '燃料が主コスト・過剰空気は熱を奪う') },
-      { i: '⛔', c: 'crit', h: t('O₂ < <b>1.2%</b> 切燃料', 'O₂ < <b>1.2%</b> trips the burner', 'O₂ < <b>1.2%</b> で燃料遮断') },
+    wizard: () => [
+      { at: '.cd-arena', title: t('目标:出口稳在 <span class="em">362–378°C</span>', 'Goal: hold the outlet in <span class="em">362–378°C</span>', '目標:出口を <span class="em">362–378°C</span> に'),
+        body: t('燃料在炉膛烧,把盘管里的进料加热到出口温度(大字)。低于 362° 就在亏罚款——出口数字变<b>黄</b>就是出带了。', 'Fuel fires the box and heats the feed coil to the outlet temperature (the big number). Below 362° you bleed penalties — the readout turns <b>amber</b> when off-band.', '燃料が炉を焚き、コイル内の供給を出口温度(大きな数字)まで加熱。362° 未満はペナルティ — 帯域外で数字が<b>黄色</b>に。') },
+      { at: '#cd-controls', title: t('操作:燃料烧钱,风门给氧', 'Controls: fuel burns money, the damper feeds air', '操作:燃料は金、ダンパーは空気'),
+        body: t('<b>燃料</b>越大越热也越烧钱;<b>风门</b>控制助燃风——风太大,多余空气把热量从烟囱带走(费燃料);风太小,缺氧。', '<b>Fuel</b> up = hotter but pricier; the <b>damper</b> sets combustion air — too much and excess air steals heat up the stack (wasting fuel), too little and you starve the flame.', '<b>燃料</b>を上げれば高温だが高コスト;<b>ダンパー</b>は燃焼空気 — 多すぎると余剰空気が熱を煙突へ奪い(燃料浪費)、少なすぎると酸欠。') },
+      { at: '.cd-arena', title: t('红线:O₂ < <span class="em">1.2%</span> 切燃料', 'Red line: O₂ < <span class="em">1.2%</span> trips the burner', 'レッドライン:O₂ < <span class="em">1.2%</span> で燃料遮断'),
+        body: t('看烟囱旁的 O₂ 读数。为省燃料把风关太小,O₂ 跌破 <span class="crit">1.2%</span>,燃烧器联锁<span class="crit">切断燃料</span>——温度崩盘。', 'Watch the O₂ readout by the stack. Choke the air to save fuel and when O₂ drops below <span class="crit">1.2%</span> the burner interlock <span class="crit">cuts the fuel</span> — temperature collapses.', '煙突横の O₂ 表示に注目。空気を絞りすぎて O₂ が <span class="crit">1.2%</span> を割るとバーナー遮断で<span class="crit">燃料カット</span> — 温度崩壊。') },
+      { at: '.cd-board', title: t('比什么:运行成本 ¥/h', 'Scoring: operating cost ¥/h', '勝負:運転コスト ¥/h'),
+        body: t('燃料费 + 罚款 = <b>运行成本 ¥/h</b>,低者胜。燃料热值还会漂移——同样的阀位,火力会变。', 'Fuel bill + penalties = <b>operating cost ¥/h</b>, lower wins. Fuel quality drifts too — the same valve gives a changing flame.', '燃料費 + ペナルティ = <b>運転コスト ¥/h</b>、低い方が勝ち。燃料品質も変動 — 同じ弁開度でも火力が変わる。') },
     ],
   },
   cascade: {
@@ -98,9 +112,13 @@ const LEVELS = {
     autoLevel: true,
     disturb: { type: 'cold_inlet', warmBias: 0.4, mag: [4, 9], every: [15, 30], dur: [10, 18] },
     money: 'cost', compare: 'energy', bands: [[34, null], [48, null], [60, null]],
-    goals: () => [
-      { i: '🎯', c: '', h: t('三罐到温:<b>≥34 / 48 / 60°C</b>', 'Heat the tanks to <b>≥34 / 48 / 60°C</b>', '3タンクを <b>≥34/48/60°C</b> へ') },
-      { i: '💰', c: 'money', h: t('欠温罚钱 · 过热浪费电', 'Under-temp = penalty · overheating wastes power', '温度不足は罰金・過熱は電力浪費') },
+    wizard: () => [
+      { at: '.cd-arena', title: t('目标:三罐到温 <span class="em">≥34 / 48 / 60°C</span>', 'Goal: heat the tanks to <span class="em">≥34 / 48 / 60°C</span>', '目標:3タンクを <span class="em">≥34/48/60°C</span> へ'),
+        body: t('水从左往右逐罐流过,每罐一个温度下限(T1≥34、T2≥48、T3≥60)。水位是自动的,你只管温度。', 'Water flows left to right through the three tanks; each has a temperature floor (T1≥34, T2≥48, T3≥60). Levels hold themselves — you only own the temperatures.', '水は左から右へ流れ、各タンクに温度下限(T1≥34、T2≥48、T3≥60)。液位は自動 — あなたは温度だけ。') },
+      { at: '#cd-controls', title: t('操作:三根加热滑杆', 'Controls: three heater sliders', '操作:3本の加熱スライダー'),
+        body: t('每根滑杆管一个罐的加热器。上游罐的热水会流进下游罐——<b>把热花在上游,下游能省</b>。', 'One slider per tank heater. Hot water from an upstream tank flows into the next — <b>heat spent upstream saves money downstream</b>.', '各スライダーが1タンクのヒーター。上流の熱水は下流へ流れる — <b>上流で加熱すれば下流は節約</b>。') },
+      { at: '.cd-board', title: t('比什么:电费 ¥/h', 'Scoring: electricity ¥/h', '勝負:電気代 ¥/h'),
+        body: t('比<b>运行成本 ¥/h</b>,低者胜:欠温罚款重,烧过头纯浪费。', 'Lowest <b>operating cost ¥/h</b> wins: under-temp penalties are heavy, overshooting is pure waste.', '<b>運転コスト ¥/h</b> が低い方の勝ち:温度不足の罰金は重く、過熱は純浪費。') },
     ],
   },
 };
@@ -144,20 +162,74 @@ class Challenge {
     this.toastHost = document.getElementById('cd-toast');
     this.board = makeScoreboard();
     this.timer = null; this.phase = 'select'; this.levelKey = null;
-    this._bindLang();
+    this._bindLang(); this._bindHelp();
     applyStatic(); this._syncLangBtn();
     onLang(() => { this._syncLangBtn(); this._rebuildLangView(); });
     this.showSelect();
   }
 
   _bindLang() { document.getElementById('cd-lang').addEventListener('click', () => setLang(nextLang())); }
+  _bindHelp() {
+    document.getElementById('cd-help').addEventListener('click', () => {
+      if (!this.cfg || !this.cfg.wizard || this._wiz) return;
+      const wasPlaying = this.phase === 'play' && !!this.timer;
+      if (wasPlaying) { clearInterval(this.timer); this.timer = null; }   // pause the race
+      this.showWizard(() => { if (wasPlaying) this.timer = setInterval(() => this._loop(), TICK * 1000); });
+    });
+    window.addEventListener('resize', () => { if (this._wiz) this._renderWizStep(); });
+  }
+
+  // ---- guided wizard: spotlight a real UI region per step + a step card ----
+  showWizard(onDone) {
+    this._wiz = { steps: this.cfg.wizard(), i: 0, onDone };
+    document.getElementById('cd-wiz').hidden = false;
+    this._renderWizStep();
+  }
+  _closeWizard() {
+    const done = this._wiz && this._wiz.onDone;
+    this._wiz = null;
+    document.getElementById('cd-wiz').hidden = true;
+    if (done) done();
+  }
+  _renderWizStep() {
+    const wz = this._wiz; if (!wz) return;
+    wz.steps = this.cfg.wizard();                     // re-localize on language switch
+    const st = wz.steps[wz.i], n = wz.steps.length;
+    const hole = document.getElementById('cd-wiz-hole');
+    const tgt = document.querySelector(st.at);
+    const r = tgt ? tgt.getBoundingClientRect() : { left: 20, top: 80, width: innerWidth - 40, height: 200 };
+    const pad = 6;
+    hole.style.left = (r.left - pad) + 'px'; hole.style.top = (r.top - pad) + 'px';
+    hole.style.width = (r.width + 2 * pad) + 'px'; hole.style.height = (r.height + 2 * pad) + 'px';
+    const card = document.getElementById('cd-wiz-card');
+    const last = wz.i === n - 1;
+    card.innerHTML = `
+      <div class="cd-wiz-step">${t('第', 'Step ', 'ステップ ')}${wz.i + 1} / ${n}${t(' 步', '', '')}</div>
+      <div class="cd-wiz-title">${st.title}</div>
+      <div class="cd-wiz-body">${st.body}</div>
+      <div class="cd-wiz-btns">
+        <button class="cd-btn ghost skip" id="cd-wiz-skip">${t('跳过', 'Skip', 'スキップ')}</button>
+        <button class="cd-btn primary" id="cd-wiz-next">${last ? t('开始挑战', 'Start', '挑戦開始') : t('下一步', 'Next', '次へ')}</button>
+      </div>
+      <div class="cd-wiz-dots">${wz.steps.map((_, k) => `<i class="${k === wz.i ? 'on' : ''}"></i>`).join('')}</div>`;
+    card.querySelector('#cd-wiz-skip').onclick = () => this._closeWizard();
+    card.querySelector('#cd-wiz-next').onclick = () => { if (last) this._closeWizard(); else { wz.i++; this._renderWizStep(); } };
+    // place the card opposite the hole's half of the screen
+    const holeMidY = r.top + r.height / 2;
+    card.style.top = '';
+    card.style.bottom = '';
+    if (holeMidY < innerHeight / 2) card.style.bottom = Math.max(14, innerHeight - r.top - r.height - 300) < 60 ? '16px' : (innerHeight * 0.10) + 'px';
+    else card.style.top = '58px';
+    if (holeMidY < innerHeight / 2 && r.bottom + 260 < innerHeight) { card.style.bottom = ''; card.style.top = (r.bottom + 14) + 'px'; }
+    else if (holeMidY >= innerHeight / 2 && r.top - 260 > 0) { card.style.top = Math.max(12, r.top - card.offsetHeight - 14) + 'px'; card.style.bottom = ''; }
+  }
   _syncLangBtn() { document.getElementById('cd-lang').textContent = LANG_NAMES[nextLang()]; }
   _rebuildLangView() {
+    if (this._wiz) this._renderWizStep();
     if (this.cfg) {
       this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
       this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
       this._buildControls();
-      this._buildGoals();
       document.getElementById('cd-sub').textContent = this.cfg.sub;
       const cap = document.querySelector('.cd-vs-cap');
       if (cap) cap.textContent = this.cfg.money === 'profit' ? t('利润 ¥/h · 高者胜', 'Profit ¥/h · higher wins', '利益 ¥/h · 高い方が勝ち')
@@ -169,6 +241,8 @@ class Challenge {
 
   showSelect() {
     this.phase = 'select'; this.overlay.hidden = false;
+    const hb = document.getElementById('cd-help'); if (hb) hb.hidden = true;
+    if (this._wiz) { this._wiz.onDone = null; this._closeWizard(); }
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     selectCard(this.card, LEVELS, (key) => this.pick(key));
   }
@@ -186,16 +260,13 @@ class Challenge {
     this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
     this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
     this._buildControls();
-    this._buildGoals();
-    this.start();
-  }
-
-  _buildGoals() {
-    const host = document.getElementById('cd-goals');
-    if (!host) return;
-    const gs = this.cfg && this.cfg.goals ? this.cfg.goals() : null;
-    host.hidden = !gs;
-    if (gs) host.innerHTML = gs.map((g) => `<span class="cd-goal ${g.c}"><span class="gi">${g.i}</span><span>${g.h}</span></span>`).join('');
+    // first visit to a level: play the guided wizard, then start; replays skip it
+    const seenKey = 'aiogym.wiz.' + key;
+    let seen = false; try { seen = !!localStorage.getItem(seenKey); } catch (e) { /* no storage */ }
+    if (!seen && this.cfg.wizard) {
+      this.overlay.hidden = true;
+      this.showWizard(() => { try { localStorage.setItem(seenKey, '1'); } catch (e) { /* ignore */ } this.start(); });
+    } else this.start();
   }
 
   _buildControls() {
@@ -232,6 +303,7 @@ class Challenge {
       const vv = document.getElementById('cv' + j); if (vv) vv.textContent = c.cls === 'ac' ? acLabel(this.units[j]) : Math.round(this.units[j] * 100) + '%';
     });
     this.human.running = this.ghost.running = true;
+    document.getElementById('cd-help').hidden = false;
     if (this.timer) clearInterval(this.timer);
     this.timer = setInterval(() => this._loop(), TICK * 1000);
   }

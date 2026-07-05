@@ -6,7 +6,7 @@
 // the controller is DOING is first-class information. Media fills keep the
 // temperature colour ramp (a deliberate teaching aid, kept low-saturation).
 // A `compact` option strips badges/bars for small embeds (the challenge page).
-import { t as L } from './i18n.js?v=24';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=25';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {
