@@ -5,9 +5,9 @@
 // product credit − energy×price − off-spec penalty. Costs are negative; HIGHER
 // always wins. Anti-idle: idling drifts off-spec and the penalty dwarfs the
 // energy saved. Reuses the sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=25';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=25';
-import { buildSchematic } from '../schematic.js?v=25';
+import { Engine } from '../sim/engine.js?v=26';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=26';
+import { buildSchematic } from '../schematic.js?v=26';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
@@ -67,7 +67,7 @@ const LEVELS = {
       { at: '#cd-controls', title: t('操作:一台空调一根滑杆', 'Controls: one slider per AC unit', '操作:空調1台に1スライダー'),
         body: t('<b>左 = 制冷,中间 = 关,右 = 制热</b>。开得越猛越费电——刚好够用才是最省的。', '<b>Left = cool, centre = off, right = heat</b>. The harder it runs, the more it costs — "just enough" is the cheap way.', '<b>左 = 冷房、中央 = オフ、右 = 暖房</b>。強いほど電気代がかさむ — 「ちょうど良い」が最安。') },
       { at: '.cd-board', title: t('比什么:电费 ¥/h', 'Scoring: electricity ¥/h', '勝負:電気代 ¥/h'),
-        body: t('比<b>运行成本 ¥/h</b>,低者胜。注意:房间出带的罚钱远比省下的电费贵。', 'Lowest <b>operating cost ¥/h</b> wins. Careful: the off-band penalty far outweighs any power you save.', '<b>運転コスト ¥/h</b> が低い方の勝ち。帯域外ペナルティは節電分よりはるかに高い。') },
+        body: t('比<b>运行成本 ¥/h</b>,低者胜。注意:房间一旦出带,罚款很快就超过省下的那点电费。', 'Lowest <b>operating cost ¥/h</b> wins. Careful: once a room drifts off-band, the penalty quickly outgrows whatever power you saved.', '<b>運転コスト ¥/h</b> が低い方の勝ち。部屋が帯域を外れると、ペナルティは節電分をすぐ上回る。') },
     ],
   },
   heater: {
@@ -87,7 +87,7 @@ const LEVELS = {
     money: 'cost', compare: 'energy', bands: [[362, 378]],
     wizard: () => [
       { at: '.cd-arena', title: t('目标:出口稳在 <span class="em">362–378°C</span>', 'Goal: hold the outlet in <span class="em">362–378°C</span>', '目標:出口を <span class="em">362–378°C</span> に'),
-        body: t('燃料在炉膛烧,把盘管里的进料加热到出口温度(大字)。低于 362° 就在亏罚款——出口数字变<b>黄</b>就是出带了。', 'Fuel fires the box and heats the feed coil to the outlet temperature (the big number). Below 362° you bleed penalties — the readout turns <b>amber</b> when off-band.', '燃料が炉を焚き、コイル内の供給を出口温度(大きな数字)まで加熱。362° 未満はペナルティ — 帯域外で数字が<b>黄色</b>に。') },
+        body: t('燃料在炉膛烧,把盘管里的进料加热到出口温度(大字)。出了 <b>362–378</b> 这个窗就在亏罚款(过冷过热都罚)——出口数字变<b>黄</b>就是出带了。', 'Fuel fires the box and heats the feed coil to the outlet temperature (the big number). Outside the <b>362–378</b> window you bleed penalties (too cold AND too hot) — the readout turns <b>amber</b> when off-band.', '燃料が炉を焚き、コイル内の供給を出口温度(大きな数字)まで加熱。<b>362–378</b> の窓を外れるとペナルティ(低すぎも高すぎも) — 帯域外で数字が<b>黄色</b>に。') },
       { at: '#cd-controls', title: t('操作:燃料烧钱,风门给氧', 'Controls: fuel burns money, the damper feeds air', '操作:燃料は金、ダンパーは空気'),
         body: t('<b>燃料</b>越大越热也越烧钱;<b>风门</b>控制助燃风——风太大,多余空气把热量从烟囱带走(费燃料);风太小,缺氧。', '<b>Fuel</b> up = hotter but pricier; the <b>damper</b> sets combustion air — too much and excess air steals heat up the stack (wasting fuel), too little and you starve the flame.', '<b>燃料</b>を上げれば高温だが高コスト;<b>ダンパー</b>は燃焼空気 — 多すぎると余剰空気が熱を煙突へ奪い(燃料浪費)、少なすぎると酸欠。') },
       { at: '.cd-arena', title: t('红线:O₂ < <span class="em">1.2%</span> 切燃料', 'Red line: O₂ < <span class="em">1.2%</span> trips the burner', 'レッドライン:O₂ < <span class="em">1.2%</span> で燃料遮断'),
@@ -111,14 +111,14 @@ const LEVELS = {
     ],
     autoLevel: true,
     disturb: { type: 'cold_inlet', warmBias: 0.4, mag: [4, 9], every: [15, 30], dur: [10, 18] },
-    money: 'cost', compare: 'energy', bands: [[34, null], [48, null], [60, null]],
+    money: 'cost', compare: 'energy', bands: [[34, 44], [48, 58], [60, 72]],
     wizard: () => [
-      { at: '.cd-arena', title: t('目标:三罐到温 <span class="em">≥34 / 48 / 60°C</span>', 'Goal: heat the tanks to <span class="em">≥34 / 48 / 60°C</span>', '目標:3タンクを <span class="em">≥34/48/60°C</span> へ'),
-        body: t('水从左往右逐罐流过,每罐一个温度下限(T1≥34、T2≥48、T3≥60)。水位是自动的,你只管温度。', 'Water flows left to right through the three tanks; each has a temperature floor (T1≥34, T2≥48, T3≥60). Levels hold themselves — you only own the temperatures.', '水は左から右へ流れ、各タンクに温度下限(T1≥34、T2≥48、T3≥60)。液位は自動 — あなたは温度だけ。') },
+      { at: '.cd-arena', title: t('目标:三罐各守一个温度窗', 'Goal: hold each tank in its temperature window', '目標:各タンクを温度ウィンドウ内に'),
+        body: t('水从左往右逐罐流过,每罐一个温度窗:<b>T1 34–44、T2 48–58、T3 60–72°C</b>。出窗(过冷或过热)都罚钱。水位是自动的,你只管温度。', 'Water flows left to right through the tanks; each has a temperature window: <b>T1 34–44, T2 48–58, T3 60–72 °C</b>. Off-window (too cold OR too hot) is penalised. Levels hold themselves — you only own the temperatures.', '水は左から右へ流れ、各タンクに温度ウィンドウ:<b>T1 34–44、T2 48–58、T3 60–72°C</b>。外れると(低すぎも高すぎも)ペナルティ。液位は自動 — あなたは温度だけ。') },
       { at: '#cd-controls', title: t('操作:三根加热滑杆', 'Controls: three heater sliders', '操作:3本の加熱スライダー'),
         body: t('每根滑杆管一个罐的加热器。上游罐的热水会流进下游罐——<b>把热花在上游,下游能省</b>。', 'One slider per tank heater. Hot water from an upstream tank flows into the next — <b>heat spent upstream saves money downstream</b>.', '各スライダーが1タンクのヒーター。上流の熱水は下流へ流れる — <b>上流で加熱すれば下流は節約</b>。') },
       { at: '.cd-board', title: t('比什么:电费 ¥/h', 'Scoring: electricity ¥/h', '勝負:電気代 ¥/h'),
-        body: t('比<b>运行成本 ¥/h</b>,低者胜:欠温罚款重,烧过头纯浪费。', 'Lowest <b>operating cost ¥/h</b> wins: under-temp penalties are heavy, overshooting is pure waste.', '<b>運転コスト ¥/h</b> が低い方の勝ち:温度不足の罰金は重く、過熱は純浪費。') },
+        body: t('比<b>运行成本 ¥/h</b>,低者胜:出窗要罚款,烧过头还白费电——贴着各自窗的下沿最省。', 'Lowest <b>operating cost ¥/h</b> wins: off-window costs penalties and overshooting wastes power on top — riding each window\'s lower edge is cheapest.', '<b>運転コスト ¥/h</b> が低い方の勝ち:ウィンドウ外はペナルティ、過熱は電力も浪費 — 各ウィンドウの下端に沿うのが最安。') },
     ],
   },
 };
@@ -260,13 +260,7 @@ class Challenge {
     this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
     this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
     this._buildControls();
-    // first visit to a level: play the guided wizard, then start; replays skip it
-    const seenKey = 'aiogym.wiz.' + key;
-    let seen = false; try { seen = !!localStorage.getItem(seenKey); } catch (e) { /* no storage */ }
-    if (!seen && this.cfg.wizard) {
-      this.overlay.hidden = true;
-      this.showWizard(() => { try { localStorage.setItem(seenKey, '1'); } catch (e) { /* ignore */ } this.start(); });
-    } else this.start();
+    this._beginRound();
   }
 
   _buildControls() {
@@ -287,6 +281,14 @@ class Challenge {
     });
     if (this.cfg.controls[0].cls === 'ac') host.insertAdjacentHTML('beforeend',
       `<div class="cd-ac-legend"><span>${t('← 制冷', '← cool', '← 冷房')}</span><span>${t('关', 'off', 'オフ')}</span><span>${t('制热 →', 'heat →', '暖房 →')}</span></div>`);
+  }
+
+  // Every round opens with the guided wizard (level pick AND play-again) so the
+  // goal/controls/red-line briefing is never skipped by accident; Skip is one tap.
+  _beginRound() {
+    this.overlay.hidden = true;
+    if (this.cfg.wizard) this.showWizard(() => this.start());
+    else this.start();
   }
 
   start() {
@@ -412,7 +414,7 @@ class Challenge {
   }
   _showResult() {
     this.overlay.hidden = false;
-    resultCard(this.card, this._result, () => this.start(), () => this.showSelect(), () => { location.href = './index.html'; });
+    resultCard(this.card, this._result, () => this._beginRound(), () => this.showSelect(), () => { location.href = './index.html'; });
   }
 }
 
