@@ -5,9 +5,9 @@
 // product credit − energy×price − off-spec penalty. Costs are negative; HIGHER
 // always wins. Anti-idle: idling drifts off-spec and the penalty dwarfs the
 // energy saved. Reuses the sandbox engine + animated P&ID.
-import { Engine } from '../sim/engine.js?v=23';
-import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=23';
-import { buildSchematic } from '../schematic.js?v=23';
+import { Engine } from '../sim/engine.js?v=24';
+import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=24';
+import { buildSchematic } from '../schematic.js?v=24';
 import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
@@ -34,6 +34,11 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'cold_inlet', warmBias: 0.5, mag: [4, 9], every: [14, 30], dur: [9, 18] },
     money: 'profit', compare: 'prod',
+    goals: () => [
+      { i: '🎯', c: '', h: t('贴着 <b>88°C</b> 跑 — 越近产量越高', 'Ride close to <b>88°C</b> — hotter = more yield', '<b>88°C</b> ギリギリで運転 — 高温ほど生産大') },
+      { i: '💰', c: 'money', h: t('产量赚钱 · 冷却费电', 'Yield earns · cooling costs', '生産で稼ぎ・冷却は電気代') },
+      { i: '⛔', c: 'crit', h: t('过 <b>92°</b> 失控,进料切断', 'Past <b>92°</b> = runaway, feed trips', '<b>92°</b> 超で暴走・供給遮断') },
+    ],
     bands: [[null, 88]],
   },
   hvac: {
@@ -51,6 +56,10 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'ambient', warmBias: 0.5, mag: [6, 12], every: [13, 28], dur: [11, 21] },
     money: 'cost', compare: 'energy', bands: [[20, 24], [20, 24]],
+    goals: () => [
+      { i: '🎯', c: '', h: t('两个房间都保 <b>20–24°C</b>', 'Keep both rooms in <b>20–24°C</b>', '両室を <b>20–24°C</b> に維持') },
+      { i: '💰', c: 'money', h: t('空调越猛越费电 · 出带罚钱', 'Harder AC = more power · off-band = penalty', '空調が強いほど電気代・帯域外は罰金') },
+    ],
   },
   heater: {
     scenario: 'heater', sub: 'refinery fired heater',
@@ -67,6 +76,11 @@ const LEVELS = {
     autoLevel: false,
     disturb: { type: 'fuel_lhv', warmBias: 0.5, mag: [0.08, 0.15], every: [14, 28], dur: [12, 22] },
     money: 'cost', compare: 'energy', bands: [[362, 378]],
+    goals: () => [
+      { i: '🎯', c: '', h: t('出口稳在 <b>362–378°C</b>', 'Hold the outlet in <b>362–378°C</b>', '出口を <b>362–378°C</b> に維持') },
+      { i: '💰', c: 'money', h: t('燃料是大头 · 风大偷热', 'Fuel is the bill · excess air steals heat', '燃料が主コスト・過剰空気は熱を奪う') },
+      { i: '⛔', c: 'crit', h: t('O₂ < <b>1.2%</b> 切燃料', 'O₂ < <b>1.2%</b> trips the burner', 'O₂ < <b>1.2%</b> で燃料遮断') },
+    ],
   },
   cascade: {
     scenario: 'cascade', sub: 'heated-tank cascade',
@@ -84,6 +98,10 @@ const LEVELS = {
     autoLevel: true,
     disturb: { type: 'cold_inlet', warmBias: 0.4, mag: [4, 9], every: [15, 30], dur: [10, 18] },
     money: 'cost', compare: 'energy', bands: [[34, null], [48, null], [60, null]],
+    goals: () => [
+      { i: '🎯', c: '', h: t('三罐到温:<b>≥34 / 48 / 60°C</b>', 'Heat the tanks to <b>≥34 / 48 / 60°C</b>', '3タンクを <b>≥34/48/60°C</b> へ') },
+      { i: '💰', c: 'money', h: t('欠温罚钱 · 过热浪费电', 'Under-temp = penalty · overheating wastes power', '温度不足は罰金・過熱は電力浪費') },
+    ],
   },
 };
 
@@ -139,6 +157,7 @@ class Challenge {
       this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
       this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
       this._buildControls();
+      this._buildGoals();
       document.getElementById('cd-sub').textContent = this.cfg.sub;
       const cap = document.querySelector('.cd-vs-cap');
       if (cap) cap.textContent = this.cfg.money === 'profit' ? t('利润 ¥/h · 高者胜', 'Profit ¥/h · higher wins', '利益 ¥/h · 高い方が勝ち')
@@ -167,7 +186,16 @@ class Challenge {
     this.schY = buildSchematic(document.getElementById('cd-arena-you'), this.human.model.metadata(), { compact: true });
     this.schR = buildSchematic(document.getElementById('cd-arena-rl'), this.ghost.model.metadata(), { compact: true });
     this._buildControls();
+    this._buildGoals();
     this.start();
+  }
+
+  _buildGoals() {
+    const host = document.getElementById('cd-goals');
+    if (!host) return;
+    const gs = this.cfg && this.cfg.goals ? this.cfg.goals() : null;
+    host.hidden = !gs;
+    if (gs) host.innerHTML = gs.map((g) => `<span class="cd-goal ${g.c}"><span class="gi">${g.i}</span><span>${g.h}</span></span>`).join('');
   }
 
   _buildControls() {

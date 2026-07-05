@@ -73,6 +73,16 @@ body.cd{
 .cd-lead{font-size:11px; color:var(--cd-dim); font-weight:600; white-space:nowrap}
 .cd-lead.you{color:var(--cd-you)} .cd-lead.rl{color:var(--cd-rl)}
 
+/* ---------------- Round goals ---------------- */
+.cd-goals{flex:0 0 auto; display:flex; flex-wrap:wrap; justify-content:center; gap:6px; padding:2px 12px 0}
+.cd-goals[hidden]{display:none}
+.cd-goal{display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:500; color:var(--cd-text);
+  background:var(--cd-panel); border:1px solid var(--cd-line); border-radius:8px; padding:4px 10px; white-space:nowrap}
+.cd-goal .gi{font-size:12px}
+.cd-goal b{font-weight:700}
+.cd-goal.crit{border-color:rgba(255,77,77,.35); color:#FFB4B4}
+.cd-goal.money{border-color:rgba(178,237,29,.25)}
+
 /* ---------------- Plant P&ID — two views (you | RL), reused animated schematics ---------------- */
 .cd-vs-cap{font-size:9px; letter-spacing:1px; color:var(--cd-dim-2); font-weight:600; text-transform:uppercase}
 .cd-arena{flex:1 1 auto; min-height:0; margin:6px 12px 0; display:flex; flex-direction:column; gap:8px}

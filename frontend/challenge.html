@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070D15" />
   <title>AIO-Gym · 挑战 RL</title>
   <link rel="stylesheet" href="./css/tier0.css" />
-  <link rel="stylesheet" href="./css/challenge.css?v=11" />
+  <link rel="stylesheet" href="./css/challenge.css?v=12" />
 </head>
 <body class="cd">
   <div class="cd-app" id="cd-app">
@@ -39,6 +39,9 @@
       </div>
     </section>
 
+    <!-- ===== Round goals (what to control, what costs, the red line) ===== -->
+    <section class="cd-goals" id="cd-goals" hidden></section>
+
     <!-- ===== Plant P&ID — two views: you | RL, same plant, side by side ===== -->
     <section class="cd-arena">
       <div class="cd-view">
@@ -67,6 +70,6 @@
   <!-- ===== Overlay: intro / results ===== -->
   <div class="cd-overlay" id="cd-overlay"><div class="cd-card" id="cd-card"></div></div>
 
-  <script type="module" src="./js/challenge/challenge.js?v=23"></script>
+  <script type="module" src="./js/challenge/challenge.js?v=24"></script>
 </body>
 </html>

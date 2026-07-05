@@ -6,7 +6,7 @@
 // the controller is DOING is first-class information. Media fills keep the
 // temperature colour ramp (a deliberate teaching aid, kept low-saturation).
 // A `compact` option strips badges/bars for small embeds (the challenge page).
-import { t as L } from './i18n.js?v=23';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=24';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {
@@ -272,7 +272,7 @@ function buildHeater(host, meta, opts = {}) {
       o2SpT.textContent = `SP ${f.setpoints.h_sp[0].toFixed(1)}%`;
       if (o2Bar) o2Bar.set(O2, f.setpoints.h_sp[0]);
       outT.textContent = `${Tout.toFixed(1)}°`;
-      outT.setAttribute('fill', Tout >= 395 ? CRIT : '#0B1220');
+      outT.setAttribute('fill', Tout >= 395 ? CRIT : (Tout < 362 || Tout > 378) ? WARN : '#0B1220');
       outSp.textContent = `SP ${f.setpoints.t_sp[0].toFixed(0)}°`;
       if (outBar) outBar.set(Tout, f.setpoints.t_sp[0]);
       const feedTxt = `${s.t_cold.toFixed(0)}°C · ${(s.feed_rate ? s.feed_rate[0] : 0).toFixed(0)} kg/s`;
@@ -350,6 +350,8 @@ function buildCascade(host, meta, opts = {}) {
       for (let i = 0; i < n; i++) {
         const t = refs.tanks[i];
         paintTank(t, s.levels[i], s.temps[i], hmax[i], lim.t_high);
+        if (s.temps[i] < (lim.t_high || 80) && (s.temps[i] < CASCADE_BANDS[i][0] || s.temps[i] > CASCADE_BANDS[i][1]))
+          t.tempT.setAttribute('fill', WARN);
         t.tspT.textContent = `SP ${sp.t_sp[i].toFixed(0)}°`;
         const yOf = (h) => t.bottomY - clamp(h / hmax[i], 0, 1) * t.innerH;
         t.spLine.setAttribute('opacity', 0.85); t.spLine.setAttribute('y1', yOf(sp.h_sp[i])); t.spLine.setAttribute('y2', yOf(sp.h_sp[i]));
@@ -577,6 +579,7 @@ function buildHVAC(host, meta, opts = {}) {
         const r = rooms[i], T = s.temps[i], u = act.heaters[i];
         r.fill.setAttribute('fill', comfortColor(T));
         r.tempT.textContent = T.toFixed(1);
+        r.tempT.setAttribute('fill', (T < 20 || T > 24) ? WARN : '#0B1220');
         r.spT.textContent = `SP ${f.setpoints.t_sp[i].toFixed(0)}°`;
         if (r.bar) r.bar.set(T, f.setpoints.t_sp[i]);
         const k = Math.abs(u - 0.5) * 2, kw = Math.abs((u - 0.5) * 2 * 1.8);

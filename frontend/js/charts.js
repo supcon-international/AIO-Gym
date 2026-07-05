@@ -1,7 +1,7 @@
 // Real-time strip charts (uPlot), driven by the active model's `trends` spec —
 // each scenario declares what to plot (levels, temps, power, concentration, …),
 // so the charts adapt automatically. Builds its own panels into a container.
-import { t } from './i18n.js?v=23';
+import { t } from './i18n.js?v=24';
 
 const WINDOW = 2200;
 export const TANK_COLORS = ['#2563EB', '#7C3AED', '#DB2777', '#0D9488', '#D97706', '#0891B2'];
