@@ -2,14 +2,14 @@
 // drives the soft-real-time loop, applies disturbances/interlocks, scores, and
 // emits a telemetry frame identical in shape to the old WebSocket frame — so
 // the schematic/charts/controls UI is reused unchanged. Runs fully in-browser.
-import { makeModel } from './models.js?v=26';
-import { Integrator } from './kernel.js?v=26';
-import { ManualController, PIDController, RLController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=26';
-import { DisturbanceManager, CATALOG } from './disturbances.js?v=26';
-import { AlarmMonitor, LIMITS } from './alarms.js?v=26';
-import { ScoreKeeper } from './scoring.js?v=26';
-import { Realism } from './realism.js?v=26';
-import { MPCController } from './mpc.js?v=26';
+import { makeModel } from './models.js?v=27';
+import { Integrator } from './kernel.js?v=27';
+import { ManualController, PIDController, RLController, obsVector, BUILTIN_POLICIES } from './controllers.js?v=27';
+import { DisturbanceManager, CATALOG } from './disturbances.js?v=27';
+import { AlarmMonitor, LIMITS } from './alarms.js?v=27';
+import { ScoreKeeper } from './scoring.js?v=27';
+import { Realism } from './realism.js?v=27';
+import { MPCController } from './mpc.js?v=27';
 
 const TICK = 0.05;
 const EPISODE_SIM_S = 600;   // one episode = 600 s sim time (= 1 min at 10x speed)

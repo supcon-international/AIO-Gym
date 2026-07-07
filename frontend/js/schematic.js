@@ -6,7 +6,7 @@
 // the controller is DOING is first-class information. Media fills keep the
 // temperature colour ramp (a deliberate teaching aid, kept low-saturation).
 // A `compact` option strips badges/bars for small embeds (the challenge page).
-import { t as L } from './i18n.js?v=26';   // aliased: `t` is used locally for tank refs
+import { t as L } from './i18n.js?v=27';   // aliased: `t` is used locally for tank refs
 
 const SVG = 'http://www.w3.org/2000/svg';
 function el(tag, attrs = {}, kids = []) {
@@ -124,17 +124,17 @@ function tripBadge(svg, cx, cy, label) {
 }
 
 // Reusable tank cell: water + heater coil + glass + readouts.
-function tankCell(g, x, y, w, h, label) {
+function tankCell(g, x, y, w, h, label, fs = 1) {
   const innerH = h - 16, bottomY = y + h - 8;
   const water = el('rect', { x: x + 4, y: bottomY, width: w - 8, height: 0, fill: '#9CC2F0', rx: 2, opacity: 0.55 });
   const cap = el('rect', { x: x + 4, y: bottomY, width: w - 8, height: 2.5, fill: '#050B14', opacity: 0.12 });
   const coil = el('path', { d: coilPath(x + 14, bottomY - 12, w - 28), stroke: '#C3C7CC', 'stroke-width': 3.2, fill: 'none', 'stroke-linecap': 'round' });
   const glass = el('rect', { x, y, width: w, height: h, rx: 6, fill: 'none', stroke: INK, 'stroke-width': 1.6 });
   const spLine = el('line', { x1: x, y1: bottomY, x2: x + w, y2: bottomY, stroke: SPG, 'stroke-width': 1.6, 'stroke-dasharray': '5 4', opacity: 0 });
-  const tempT = el('text', { x: x + w / 2, y: y + h / 2 - 2, fill: '#0B1220', 'font-size': 21, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
-  const tspT = el('text', { x: x + w / 2, y: y + h / 2 + 16, fill: '#3F6B00', 'font-size': 10, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt(''));
-  const lvlT = el('text', { x: x + w / 2, y: bottomY - 6, fill: '#0B1220', 'font-size': 11, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
-  const title = el('text', { x: x + w / 2, y: y - 7, fill: '#585C62', 'font-size': 11, 'font-weight': 600, 'text-anchor': 'middle' }, txt(label));
+  const tempT = el('text', { x: x + w / 2, y: y + h / 2 - 2, fill: '#0B1220', 'font-size': 21 * fs, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
+  const tspT = el('text', { x: x + w / 2, y: y + h / 2 + 16 * fs, fill: '#3F6B00', 'font-size': 10 * fs, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt(''));
+  const lvlT = el('text', { x: x + w / 2, y: bottomY - 6, fill: '#0B1220', 'font-size': 11 * fs, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
+  const title = el('text', { x: x + w / 2, y: y - 7, fill: '#585C62', 'font-size': 11 * fs, 'font-weight': 600, 'text-anchor': 'middle' }, txt(label));
   [water, cap, coil, glass, spLine, tempT, tspT, lvlT, title].forEach((e) => g.appendChild(e));
   hoverable(g, label);
   return { water, cap, coil, spLine, tempT, tspT, lvlT, x, y, w, h, innerH, bottomY };
@@ -198,17 +198,18 @@ function buildHeater(host, meta, opts = {}) {
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
   const bx = 250, by = 90, bw = 220, bh = 240, cx = bx + bw / 2, bbot = by + bh;
+  const FS = compact ? 1.35 : 1;   // compact = challenge embeds: fewer labels, bigger type
   svg.appendChild(el('rect', { x: bx - 8, y: by - 8, width: bw + 16, height: bh + 16, rx: 10, fill: '#F3EDE4', stroke: '#B99D7B', 'stroke-width': 3 }));
   svg.appendChild(el('rect', { x: bx, y: by, width: bw, height: bh, rx: 6, fill: '#1c2430', stroke: INK, 'stroke-width': 1.5 }));
-  svg.appendChild(el('text', { x: cx, y: by - 16, fill: '#9fb0c2', 'font-size': 12, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[0])));
+  svg.appendChild(el('text', { x: cx, y: by - 16, fill: '#9fb0c2', 'font-size': 12 * FS, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[0])));
 
   // stack + flue O₂ readout + O₂ analog bar with the trip/acceptance bands
   const sx = bx + bw - 34;
   svg.appendChild(el('rect', { x: sx, y: by - 62, width: 30, height: 58, fill: '#E8EBEF', stroke: '#B0B4B9', 'stroke-width': 1.6 }));
   const flue = flowPipe(svg, `M${sx + 15},${by - 8} V${by - 66} H${sx + 78}`, '#9aa6b5');
-  svg.appendChild(el('text', { x: sx + 84, y: by - 62, fill: '#585C62', 'font-size': 10 }, txt(L('烟气', 'Flue', '排ガス'))));
-  const o2T = el('text', { x: sx + 84, y: by - 40, fill: '#0E8aa0', 'font-size': 15, 'font-weight': 700, 'font-family': MONO, ...HALO }, txt('O₂ --'));
-  const o2SpT = el('text', { x: sx + 84, y: by - 24, fill: SPG, 'font-size': 10.5, 'font-family': MONO, ...HALO }, txt('SP --'));
+  if (!compact) svg.appendChild(el('text', { x: sx + 84, y: by - 62, fill: '#585C62', 'font-size': 10 }, txt(L('烟气', 'Flue', '排ガス'))));
+  const o2T = el('text', { x: sx + 84, y: by - 40, fill: '#0E8aa0', 'font-size': 15 * FS, 'font-weight': 700, 'font-family': MONO, ...HALO }, txt('O₂ --'));
+  const o2SpT = el('text', { x: sx + 84, y: by - 22, fill: SPG, 'font-size': 10.5 * FS, 'font-family': MONO, ...HALO }, txt('SP --'));
   svg.appendChild(o2T); svg.appendChild(o2SpT);
   // O₂ bar: <1.2 trip (red), 1.2-1.6 warn, 1.6-5.5 economic band (norm), >5.5 wasteful (warn)
   const o2Bar = compact ? null : analogBar(svg, sx + 176, by - 70, 66,
@@ -221,10 +222,10 @@ function buildHeater(host, meta, opts = {}) {
   const feed = flowPipe(svg, `M${bx - 90},${cy0} H${bx + 10}`, '#2563EB');
   const prod = flowPipe(svg, `M${bx + bw - 4},${cy0} H${bx + bw + 26} V${cy0 + 64} H${bx + bw + 96}`, '#E4572E');
   const feedBadge = compact ? null : tagBadge(svg, bx - 158, cy0 - 16, 128, L('进料', 'FEED', '供給'), L('进料温度 · 流量', 'Feed temperature · rate', '供給温度・流量'));
-  if (compact) svg.appendChild(el('text', { x: bx - 88, y: cy0 - 12, fill: '#585C62', 'font-size': 11 }, txt(L('进料', 'Feed', '供給'))));
-  const outT = el('text', { x: bx + bw + 100, y: cy0 + 52, fill: '#0B1220', 'font-size': 26, 'font-weight': 700, 'font-family': MONO, ...HALO }, txt('--'));
-  const outSp = el('text', { x: bx + bw + 100, y: cy0 + 72, fill: SPG, 'font-size': 11, 'font-family': MONO, ...HALO }, txt('SP --'));
-  svg.appendChild(el('text', { x: bx + bw + 100, y: cy0 + 30, fill: '#585C62', 'font-size': 11 }, txt(L('出口温度', 'Outlet', '出口温度'))));
+  if (compact) svg.appendChild(el('text', { x: bx - 88, y: cy0 - 12, fill: '#585C62', 'font-size': 13 }, txt(L('进料', 'Feed', '供給'))));
+  const outT = el('text', { x: bx + bw + 100, y: cy0 + 52, fill: '#0B1220', 'font-size': 26 * FS, 'font-weight': 700, 'font-family': MONO, ...HALO }, txt('--'));
+  const outSp = el('text', { x: bx + bw + 100, y: cy0 + 74, fill: SPG, 'font-size': 11 * FS, 'font-family': MONO, ...HALO }, txt('SP --'));
+  svg.appendChild(el('text', { x: bx + bw + 100, y: cy0 + 26, fill: '#585C62', 'font-size': 11 * FS }, txt(L('出口温度', 'Outlet', '出口温度'))));
   svg.appendChild(outT); svg.appendChild(outSp);
   // outlet-temp bar: 362-378 spec band, up to 395 warn, 395-415 warn, >415 tube trip
   const outBar = compact ? null : analogBar(svg, bx + bw + 190, cy0 - 6, 116,
@@ -241,18 +242,18 @@ function buildHeater(host, meta, opts = {}) {
   const air = flowPipe(svg, `M${cx + 150},${bbot + 34} H${cx + 8} V${bbot - 2}`, '#0EA5C0');
   let fuelBadge = null, airBadge = null, fuelT = null, airT = null;
   if (compact) {
-    svg.appendChild(el('text', { x: cx - 150, y: bbot + 22, fill: '#585C62', 'font-size': 11 }, txt(L('燃料气', 'Fuel gas', '燃料ガス'))));
-    fuelT = el('text', { x: cx - 150, y: bbot + 52, fill: '#C77700', 'font-size': 11, 'font-weight': 600, 'font-family': MONO }, txt('--'));
+    svg.appendChild(el('text', { x: cx - 186, y: bbot + 20, fill: '#585C62', 'font-size': 13.5 }, txt(L('燃料气', 'Fuel gas', '燃料ガス'))));
+    fuelT = el('text', { x: cx - 186, y: bbot + 52, fill: '#C77700', 'font-size': 14.5, 'font-weight': 700, 'font-family': MONO }, txt('--'));
     svg.appendChild(fuelT);
-    svg.appendChild(el('text', { x: cx + 106, y: bbot + 22, fill: '#585C62', 'font-size': 11 }, txt(L('助燃风', 'Comb. air', '燃焼空気'))));
-    airT = el('text', { x: cx + 106, y: bbot + 52, fill: '#0E8aa0', 'font-size': 11, 'font-weight': 600, 'font-family': MONO }, txt('--'));
+    svg.appendChild(el('text', { x: cx + 96, y: bbot + 20, fill: '#585C62', 'font-size': 13.5 }, txt(L('助燃风', 'Comb. air', '燃焼空気'))));
+    airT = el('text', { x: cx + 96, y: bbot + 52, fill: '#0E8aa0', 'font-size': 14.5, 'font-weight': 700, 'font-family': MONO }, txt('--'));
     svg.appendChild(airT);
   } else {
     fuelBadge = tagBadge(svg, cx - 212, bbot + 20, 142, (meta.actuators.heaters[0] || 'FV-1'), L('燃料阀 · 开度与火力', 'Fuel valve · opening and duty', '燃料弁・開度と火力'));
     airBadge = tagBadge(svg, cx + 78, bbot + 20, 112, (meta.actuators.valves[0] || 'FD-1'), L('风门 · 开度', 'Air damper · opening', 'ダンパー・開度'));
   }
   const tfbT = el('text', { x: cx, y: bbot - 92, fill: '#ffd9a0', 'font-size': 13, 'font-weight': 600, 'text-anchor': 'middle', 'font-family': MONO }, txt('--'));
-  svg.appendChild(tfbT);
+  if (!compact) svg.appendChild(tfbT);   // tertiary info — hidden on the challenge embeds
   const trip = tripBadge(svg, cx, by + bh / 2, L('燃料联锁切断', 'FUEL TRIPPED', '燃料遮断'));
   host.appendChild(svg);
 
@@ -315,7 +316,7 @@ function buildCascade(host, meta, opts = {}) {
   for (let i = 0; i < n; i++) {
     const x = tankX(i), g = el('g');
     svg.appendChild(g);
-    const t = tankCell(g, x, TY, TW, TH, meta.tank_labels[i]);
+    const t = tankCell(g, x, TY, TW, TH, meta.tank_labels[i], compact ? 1.3 : 1);
     refs.tanks.push(t);
     // per-tank moving indicator: spec band + high/trip caps
     refs.tBars.push(compact ? null : analogBar(svg, x + TW + 7, TY + 8, TH - 26,
@@ -329,7 +330,7 @@ function buildCascade(host, meta, opts = {}) {
     const valG = hoverable(el('g', { transform: `translate(${vx},${lowY})` }), `${meta.actuators.valves[i] || 'V-' + (i + 1)}`);
     const bow = el('path', { d: 'M-10,-8 L0,0 L-10,8 Z M10,-8 L0,0 L10,8 Z', fill: '#CDCED0', stroke: '#B0B4B9', 'stroke-width': 1 });
     valG.appendChild(bow); svg.appendChild(valG);
-    if (compact) svg.appendChild(el('text', { x: vx, y: lowY + 24, fill: '#585C62', 'font-size': 10, 'text-anchor': 'middle' }, txt(`V-${i + 1}`)));
+    // compact: valve tags are tertiary — omitted (the wizard explains the flow)
     refs.vBadges.push(compact ? null : tagBadge(svg, vx - 31, lowY + 14, 62, `V-${i + 1}`, meta.actuators.valves[i]));
     refs.hBadges.push(compact ? null : tagBadge(svg, x + 6, bottomY + 26, 122, `E-${i + 1}`, meta.actuators.heaters[i]));
     t.valveBow = bow;
@@ -407,7 +408,7 @@ function buildQuadruple(host, meta, opts = {}) {
   const pos = [[colL, yLo], [colR, yLo], [colL, yUp], [colR, yUp]];
   for (let i = 0; i < 4; i++) {
     const g = el('g'); svg.appendChild(g);
-    refs.tanks.push(tankCell(g, pos[i][0], pos[i][1], TW, TH, meta.tank_labels[i]));
+    refs.tanks.push(tankCell(g, pos[i][0], pos[i][1], TW, TH, meta.tank_labels[i], compact ? 1.25 : 1));
     refs.tBars.push(compact ? null : analogBar(svg, pos[i][0] + TW + 6, pos[i][1] + 4, TH - 8,
       { min: 10, max: 95, zones: [[QUAD_BANDS[i][0], QUAD_BANDS[i][1], 'norm'], [80, 92, 'warn'], [92, 95, 'crit']], ticks: [] }));
   }
@@ -482,17 +483,18 @@ function buildCSTR(host, meta, opts = {}) {
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
   const rx = 280, ry = 86, rw = 180, rh = 214, cx = rx + rw / 2, rbot = ry + rh;
+  const FS = compact ? 1.3 : 1;
   const feed = flowPipe(svg, `M120,150 V${ry - 14} H${cx} V${ry}`, '#2563EB');
   const prod = flowPipe(svg, `M${cx},${rbot} V${rbot + 26} H${rx + rw + 70}`, '#5B8DEF');
-  svg.appendChild(el('text', { x: 120, y: 138, fill: '#585C62', 'font-size': 11, 'text-anchor': 'middle' }, txt(L('进料', 'Feed', '供給'))));
+  svg.appendChild(el('text', { x: 120, y: 138, fill: '#585C62', 'font-size': 11 * FS, 'text-anchor': 'middle' }, txt(L('进料', 'Feed', '供給'))));
   const feedPump = pumpSymbol(svg, 120, 150, meta.actuators.pumps[0]);
   const feedBadge = compact ? null : tagBadge(svg, 56, 176, 128, meta.actuators.pumps[0], L('进料 · 开度', 'Feed · opening', '供給・開度'));
-  svg.appendChild(el('text', { x: rx + rw + 78, y: rbot + 30, fill: '#585C62', 'font-size': 11 }, txt(L('产品', 'Product', '製品'))));
+  svg.appendChild(el('text', { x: rx + rw + 78, y: rbot + 30, fill: '#585C62', 'font-size': 11 * FS }, txt(L('产品', 'Product', '製品'))));
   const jacket = el('rect', { x: rx - 12, y: ry - 8, width: rw + 24, height: rh + 16, rx: 14, fill: 'none', stroke: '#9AD3DA', 'stroke-width': 6 });
   svg.appendChild(jacket);
   const coolIn = flowPipe(svg, `M${rx - 70},${ry + 30} H${rx - 12}`, '#0EA5C0');
   const coolOut = flowPipe(svg, `M${rx - 12},${rbot - 30} H${rx - 70}`, '#0EA5C0');
-  svg.appendChild(el('text', { x: rx - 78, y: ry + 22, fill: '#0E8aa0', 'font-size': 10 }, txt(L('冷却水', 'Coolant', '冷却水'))));
+  svg.appendChild(el('text', { x: rx - 78, y: ry + 22, fill: '#0E8aa0', 'font-size': 10 * FS }, txt(L('冷却水', 'Coolant', '冷却水'))));
   const coolBadge = compact ? null : tagBadge(svg, rx - 200, ry + 44, 128, meta.actuators.heaters[0], L('冷却 · 开度与功率', 'Cooling · opening and duty', '冷却・開度と出力'));
   const liquid = el('rect', { x: rx + 3, y: ry + 3, width: rw - 6, height: rh - 6, rx: 8, fill: '#9CC2F0', opacity: 0.62 });
   svg.appendChild(liquid);
@@ -503,10 +505,10 @@ function buildCSTR(host, meta, opts = {}) {
   paddle.appendChild(el('animate', { attributeName: 'x1', values: `${cx - 22};${cx - 6};${cx - 22}`, dur: '1.6s', repeatCount: 'indefinite' }));
   paddle.appendChild(el('animate', { attributeName: 'x2', values: `${cx + 22};${cx + 6};${cx + 22}`, dur: '1.6s', repeatCount: 'indefinite' }));
   svg.appendChild(paddle);
-  svg.appendChild(el('text', { x: cx, y: ry - 14, fill: '#9fb0c2', 'font-size': 12, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[0])));
-  const tempT = el('text', { x: cx, y: ry + 92, fill: '#0B1220', 'font-size': 30, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
-  const caT = el('text', { x: cx, y: ry + 122, fill: '#3F6B00', 'font-size': 14, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('Cₐ --'));
-  const spT = el('text', { x: cx, y: ry + 142, fill: SPG, 'font-size': 11, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('SP --'));
+  svg.appendChild(el('text', { x: cx, y: ry - 14, fill: '#9fb0c2', 'font-size': 12 * FS, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[0])));
+  const tempT = el('text', { x: cx, y: ry + 92, fill: '#0B1220', 'font-size': 30 * FS, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
+  const caT = el('text', { x: cx, y: ry + 122 + (FS - 1) * 10, fill: '#3F6B00', 'font-size': 14 * FS, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('Cₐ --'));
+  const spT = el('text', { x: cx, y: ry + 144 + (FS - 1) * 16, fill: SPG, 'font-size': 11 * FS, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('SP --'));
   svg.appendChild(tempT); svg.appendChild(caT); svg.appendChild(spT);
   // reactor-temp indicator: economics hug <88, 88-92 amber, >92 runaway trip
   const tBar = compact ? null : analogBar(svg, rx + rw + 26, ry + 4, rh - 8,
@@ -543,7 +545,8 @@ function buildHVAC(host, meta, opts = {}) {
   const W = 720, H = 380;
   const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet' });
   svg.appendChild(defsBlock());
-  const outdoorT = el('text', { x: W / 2, y: 26, fill: '#585C62', 'font-size': 13, 'font-weight': 600, 'text-anchor': 'middle' }, txt(L('室外', 'Outdoor', '室外') + ' --'));
+  const FS = compact ? 1.3 : 1;
+  const outdoorT = el('text', { x: W / 2, y: 26 + (FS - 1) * 8, fill: '#585C62', 'font-size': 13 * FS, 'font-weight': 600, 'text-anchor': 'middle' }, txt(L('室外', 'Outdoor', '室外') + ' --'));
   svg.appendChild(outdoorT);
   const rooms = [];
   const RW = 220, RH = 180, RY = 110, xs = [110, 110 + RW + 60];
@@ -554,9 +557,9 @@ function buildHVAC(host, meta, opts = {}) {
     svg.appendChild(el('rect', { x, y: RY, width: RW, height: RH, rx: 10, fill: 'none', stroke: INK, 'stroke-width': 1.8 }));
     const unit = el('rect', { x: cx - 34, y: RY - 26, width: 68, height: 22, rx: 4, fill: '#eef1f4', stroke: '#B0B4B9', 'stroke-width': 1.4 });
     svg.appendChild(hoverable(unit, meta.actuators.heaters[i]));
-    svg.appendChild(el('text', { x: cx, y: RY + 20, fill: '#7C8894', 'font-size': 11, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[i])));
-    const tempT = el('text', { x: cx, y: RY + 86, fill: '#0B1220', 'font-size': 30, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
-    const spT = el('text', { x: cx, y: RY + 110, fill: SPG, 'font-size': 12, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('SP --'));
+    svg.appendChild(el('text', { x: cx, y: RY + 20, fill: '#7C8894', 'font-size': 11 * FS, 'font-weight': 600, 'text-anchor': 'middle' }, txt(meta.tank_labels[i])));
+    const tempT = el('text', { x: cx, y: RY + 86, fill: '#0B1220', 'font-size': 30 * FS, 'font-weight': 700, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('--'));
+    const spT = el('text', { x: cx, y: RY + 112 + (FS - 1) * 10, fill: SPG, 'font-size': 12 * FS, 'text-anchor': 'middle', 'font-family': MONO, ...HALO }, txt('SP --'));
     svg.appendChild(tempT); svg.appendChild(spT);
     flowPipe(svg, `M${i === 0 ? x : x + RW},${RY + 30} H${i === 0 ? x - 46 : x + RW + 46}`, '#cbd5e1');
     // comfort-band indicator (20-24 = the money band) beside each room

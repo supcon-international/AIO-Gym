@@ -1,11 +1,11 @@
 // App orchestrator: runs the simulation engine in-browser (no server) and wires
 // its telemetry to the schematic, charts and panels, and the top-bar controls
 // back to the engine. Rebuilds the whole UI when the scenario changes.
-import { Engine, CATALOG } from './sim/engine.js?v=26';
-import { buildSchematic } from './schematic.js?v=26';
-import { buildCharts } from './charts.js?v=26';
-import { buildControls } from './controls.js?v=26';
-import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=26';
+import { Engine, CATALOG } from './sim/engine.js?v=27';
+import { buildSchematic } from './schematic.js?v=27';
+import { buildCharts } from './charts.js?v=27';
+import { buildControls } from './controls.js?v=27';
+import { t, applyStatic, toggleLang, lang, onLang, nextLang } from './i18n.js?v=27';
 
 const $ = (s) => document.querySelector(s);
 let schematic, charts, controls, catalog, meta;

@@ -179,8 +179,9 @@ body.cd{
   border-radius:18px; padding:26px 22px; box-shadow:0 24px 70px rgba(0,0,0,.6); text-align:center;
 }
 .cd-card h1{margin:0 0 6px; font-size:23px; font-weight:800; letter-spacing:-.4px}
-.cd-theme{margin:2px 0 10px; font-size:30px; line-height:1.18; font-weight:900; letter-spacing:-.6px; color:var(--cd-text)}
-.cd-theme .vs{color:var(--cd-you); font-style:italic; font-size:24px; padding:0 2px}
+.cd-theme{margin:2px 0 10px; font-size:32px; line-height:1.16; font-weight:900; letter-spacing:-.6px; color:var(--cd-text)}
+.cd-theme .vs{color:var(--cd-you); font-style:italic; font-size:.8em; padding:0 2px; text-shadow:0 0 18px rgba(178,237,29,.55); animation:cdVs 2.2s ease-in-out infinite}
+@keyframes cdVs{50%{text-shadow:0 0 34px rgba(178,237,29,.95)}}
 .cd-card h1 .em{color:var(--cd-you)}
 .cd-card .lede{margin:0 0 18px; font-size:13.5px; color:var(--cd-dim); line-height:1.55}
 .cd-rules{text-align:left; display:flex; flex-direction:column; gap:11px; margin:0 0 20px}
@@ -235,4 +236,33 @@ body.cd{
 }
 @media (max-height:680px){
   .cd-score-val{font-size:22px} .cd-controls{gap:6px} .cd-ctl-val{font-size:14px}
+}
+
+/* ---- expo tier (27" booth display): widen, zoom the whole app (all vector —
+   HTML text and SVG scale crisply), and enlarge the fixed-position layers that
+   sit outside the zoomed container (overlay cards, wizard). ---- */
+@media (min-width:1500px){
+  .cd-app{max-width:1310px; zoom:1.42; height:calc(100dvh / 1.42); max-height:none; margin-top:0;
+    border-left:1px solid var(--cd-line); border-right:1px solid var(--cd-line)}
+  .cd-card{max-width:760px; padding:38px 40px 32px}
+  .cd-theme{font-size:74px; margin-bottom:18px}
+  .cd-card .lede{font-size:17px; margin-bottom:22px}
+  .cd-level{padding:17px 20px}
+  .cd-level-name{font-size:21px}
+  .cd-level-tag{font-size:13px}
+  .cd-level-blurb{font-size:14.5px}
+  .cd-btn{font-size:19px; padding:17px}
+  .cd-btn.ghost{font-size:16px}
+  .cd-verdict{font-size:19px}
+  .cd-rcell .rv{font-size:30px}
+  .cd-rcell .rk{font-size:13px}
+  .cd-rcell .rsub{font-size:13px}
+  .cd-gap{font-size:15px}
+  .cd-card h1{font-size:30px}
+  .cd-wiz-card{width:600px; padding:24px 26px 20px}
+  .cd-wiz-step{font-size:12px}
+  .cd-wiz-title{font-size:24px}
+  .cd-wiz-body{font-size:16.5px; line-height:1.6}
+  .cd-wiz-btns .cd-btn{font-size:17px; padding:14px}
+  .cd-wiz-hole{border-radius:20px}
 }
