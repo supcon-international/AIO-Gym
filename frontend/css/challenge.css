@@ -179,6 +179,8 @@ body.cd{
   border-radius:18px; padding:26px 22px; box-shadow:0 24px 70px rgba(0,0,0,.6); text-align:center;
 }
 .cd-card h1{margin:0 0 6px; font-size:23px; font-weight:800; letter-spacing:-.4px}
+.cd-theme{margin:2px 0 10px; font-size:30px; line-height:1.18; font-weight:900; letter-spacing:-.6px; color:var(--cd-text)}
+.cd-theme .vs{color:var(--cd-you); font-style:italic; font-size:24px; padding:0 2px}
 .cd-card h1 .em{color:var(--cd-you)}
 .cd-card .lede{margin:0 0 18px; font-size:13.5px; color:var(--cd-dim); line-height:1.55}
 .cd-rules{text-align:left; display:flex; flex-direction:column; gap:11px; margin:0 0 20px}

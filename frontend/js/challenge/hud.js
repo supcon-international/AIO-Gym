@@ -51,10 +51,10 @@ export function selectCard(card, levels, onPick) {
       </button>`;
   }).join('');
   card.innerHTML = `
-    <h1>${t('挑战 <span class="em">RL</span>', 'Beat the <span class="em">RL</span>', '<span class="em">RL</span> に挑戦')}</h1>
-    <p class="lede">${t('选一个设备,亲手操作,和 RL 在<b>完全相同的扰动</b>下同台竞速 —— 60 秒一局。',
-      'Pick a plant, hand-control it, and race the RL under the <b>exact same disturbances</b> — 60 s a round.',
-      '設備を選び手動操作、<b>同じ外乱</b>で RL と競う —— 1ラウンド60秒。')}</p>
+    <div class="cd-theme">${t('人类 <span class="vs">vs</span> AI<br>控制挑战', 'Human <span class="vs">vs</span> AI<br>Control Challenge', '人間 <span class="vs">vs</span> AI<br>制御チャレンジ')}</div>
+    <p class="lede">${t('选一个设备,亲手操作,和 AI 在<b>完全相同的扰动</b>下同台竞速 —— 60 秒一局。',
+      'Pick a plant, hand-control it, and race the AI under the <b>exact same disturbances</b> — 60 s a round.',
+      '設備を選び手動操作、<b>同じ外乱</b>で AI と競う —— 1ラウンド60秒。')}</p>
     <div class="cd-levels">${items}</div>`;
   card.querySelectorAll('.cd-level').forEach((b) => { b.onclick = () => onPick(b.dataset.k); });
 }

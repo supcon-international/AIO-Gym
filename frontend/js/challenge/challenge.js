@@ -8,7 +8,7 @@
 import { Engine } from '../sim/engine.js?v=26';
 import { t, setLang, nextLang, applyStatic, onLang } from '../i18n.js?v=26';
 import { buildSchematic } from '../schematic.js?v=26';
-import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=13';
+import { makeScoreboard, toast, selectCard, resultCard } from './hud.js?v=14';
 
 const TICK = 0.05, SPEED = 8, CONTROL_DT = 0.1;
 const DURATION_REAL = 60, SIM_TOTAL = DURATION_REAL * SPEED;
